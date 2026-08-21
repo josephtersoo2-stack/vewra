@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -43,6 +44,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   DateTime _lastProgressPingTime = DateTime.now();
 
   double _loadingProgress = 0.0;
+  Timer? _webPlaybackTimer;
 
   @override
   void initState() {
@@ -50,16 +52,21 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     _totalWatchedSeconds = widget.session.totalWatchedSeconds;
     _lastReportedCurrentTime = widget.session.currentPosition;
     _isCompleted = widget.session.isCompleted;
+
+    if (kIsWeb) {
+      // In Web preview mode, auto-detect target video initially for convenient testing
+      _isTargetDetected = true;
+    }
   }
 
   @override
   void dispose() {
+    _webPlaybackTimer?.cancel();
     _flushRemainingProgress();
     super.dispose();
   }
 
   void _flushRemainingProgress() {
-    // Attempt one last progress update if needed
     if (_isTargetDetected && !_isCompleted && _lastReportedCurrentTime > 0) {
       _sendProgress(0.0, _lastReportedCurrentTime);
     }
@@ -68,11 +75,11 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   void _handleTrackerMessage(List<dynamic> args) {
     if (args.isEmpty || args.first is! Map) return;
 
-    final data = Map<String, dynamic>.from(args.first as Map);
-    final eventType = data['eventType'] as String? ?? '';
-    final videoId = data['videoId'] as String?;
+    final Map<dynamic, dynamic> data = args.first as Map<dynamic, dynamic>;
+    final eventType = data['eventType']?.toString() ?? '';
+    final videoId = data['videoId']?.toString();
     final currentTime = (data['currentTime'] is num) ? (data['currentTime'] as num).toDouble() : 0.0;
-    final isPlaying = data['isPlaying'] as bool? ?? false;
+    final isPlaying = data['isPlaying'] == true;
 
     final isTarget = (videoId != null && videoId == widget.task.videoId);
 
@@ -144,7 +151,6 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
 
       if (!mounted) return;
 
-
       setState(() {
         _totalWatchedSeconds = totalWatched;
         _isCompleted = completed;
@@ -153,58 +159,63 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
         }
       });
 
-      // Update global providers
+      // Update global user wallet balance
       if (walletBal != null) {
-        Provider.of<AuthProvider>(context, listen: false).updateBalance(walletBal);
-      }
-      Provider.of<TasksProvider>(context, listen: false).updateSessionProgress(
-        currentPosition: currentTime,
-        totalWatched: totalWatched,
-        isCompleted: completed,
-      );
-
-      if (coinsEarned > 0) {
-        _showCoinRewardSnackBar(coinsEarned);
+        context.read<AuthProvider>().updateWalletBalance(walletBal);
       }
 
+      // Mark completed in tasks provider if done
       if (completed) {
-        _showCompletionDialog();
+        context.read<TasksProvider>().markTaskCompleted(widget.task.id);
+        _showCompletedDialog();
+      } else if (coinsEarned > 0) {
+        _showRewardToast(coinsEarned);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Vewra Tracker] Failed to send watch progress: $e');
+    }
   }
 
-  void _showCoinRewardSnackBar(double coins) {
+  void _showRewardToast(double coins) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        backgroundColor: AppColors.surfaceCard,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.coinGold),
+        ),
+
+        duration: const Duration(seconds: 2),
         content: Row(
           children: [
-            const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 18),
-            const SizedBox(width: 8),
+            const Icon(CupertinoIcons.star_circle_fill, color: AppColors.coinGold, size: 24),
+            const SizedBox(width: 12),
             Text(
               '+${Formatters.formatCoins(coins)} Coins Earned!',
-              style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.coinGold),
             ),
           ],
         ),
-        backgroundColor: AppColors.surfaceLight,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  void _showCompletionDialog() {
+  void _showCompletedDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
         title: const Row(
           children: [
-            Icon(CupertinoIcons.star_circle_fill, color: AppColors.coinGold, size: 30),
+            Icon(CupertinoIcons.checkmark_seal_fill, color: AppColors.primary, size: 28),
             SizedBox(width: 10),
-            Text('Task Complete! 🎉', style: TextStyle(fontWeight: FontWeight.w800)),
+            Text('Task Completed!'),
           ],
         ),
         content: Column(
@@ -212,10 +223,10 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You successfully watched "${widget.task.title}" and earned your rewards!',
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              'Awesome! You successfully completed:\n"${widget.task.title}"',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -223,16 +234,12 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total Earned:', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Icon(CupertinoIcons.money_dollar_circle_fill, color: AppColors.coinGold, size: 24),
+                  const SizedBox(width: 10),
                   Text(
                     '+${Formatters.formatCoins(_sessionCoinsEarned)} Coins',
-                    style: const TextStyle(
-                      color: AppColors.coinGold,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.coinGold),
                   ),
                 ],
               ),
@@ -242,12 +249,246 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
         actions: [
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context); // return to tasks
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
             },
             child: const Text('Back to Tasks'),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- Web Preview Simulator Controls ---
+  void _toggleWebPlayPause() {
+    setState(() {
+      _isPlaying = !_isPlaying;
+    });
+
+    if (_isPlaying) {
+      _webPlaybackTimer?.cancel();
+      _webPlaybackTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!_isPlaying || _isCompleted) {
+          timer.cancel();
+          return;
+        }
+
+        final nextTime = _lastReportedCurrentTime + 1.0;
+        _processPlaybackUpdate(eventType: 'timeupdate', currentTime: nextTime, isPlaying: true);
+      });
+    } else {
+      _webPlaybackTimer?.cancel();
+      _processPlaybackUpdate(eventType: 'pause', currentTime: _lastReportedCurrentTime, isPlaying: false);
+    }
+  }
+
+  void _simulateFastForward(double seconds) {
+    if (_isCompleted) return;
+    final nextTime = _lastReportedCurrentTime + seconds;
+    _processPlaybackUpdate(eventType: 'timeupdate', currentTime: nextTime, isPlaying: _isPlaying);
+  }
+
+  Widget _buildWebSimulatorView() {
+    return Container(
+      color: AppColors.background,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Info Banner
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(CupertinoIcons.info_circle_fill, color: AppColors.primary, size: 22),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Web Browser Preview Mode: Native Android/iOS devices use full InAppWebView with automatic JavaScript injection.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Video Thumbnail & Player Mockup
+                Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _isTargetDetected ? AppColors.success : AppColors.border, width: 2),
+                    image: DecorationImage(
+                      image: NetworkImage(
+                        (widget.task.thumbnailUrl != null && widget.task.thumbnailUrl!.isNotEmpty)
+                            ? widget.task.thumbnailUrl!
+                            : 'https://img.youtube.com/vi/${widget.task.videoId}/hqdefault.jpg',
+                      ),
+
+                      fit: BoxFit.cover,
+                      opacity: _isPlaying ? 0.7 : 0.4,
+                    ),
+                  ),
+
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: InkWell(
+                          onTap: _toggleWebPlayPause,
+                          borderRadius: BorderRadius.circular(40),
+                          child: Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: (_isPlaying ? AppColors.primary : AppColors.error).withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              _isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_arrow_solid,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: _isPlaying ? AppColors.success : AppColors.textMuted,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _isPlaying ? 'PLAYING (Tracking Active)' : 'PAUSED',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: _isPlaying ? AppColors.success : AppColors.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '${Formatters.formatDuration(_lastReportedCurrentTime.toInt())} elapsed',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Simulator Controls Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Playback Simulation Controls',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _toggleWebPlayPause,
+                              icon: Icon(_isPlaying ? CupertinoIcons.pause : CupertinoIcons.play_arrow_solid, size: 18),
+                              label: Text(_isPlaying ? 'Pause' : 'Play Video'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isPlaying ? AppColors.surface : AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _simulateFastForward(10.0),
+                              icon: const Icon(CupertinoIcons.forward_fill, size: 18),
+                              label: const Text('+10s Forward'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isTargetDetected = !_isTargetDetected;
+                                });
+                              },
+                              icon: Icon(
+                                _isTargetDetected ? CupertinoIcons.checkmark_alt_circle : CupertinoIcons.xmark_circle,
+                                size: 18,
+                                color: _isTargetDetected ? AppColors.success : AppColors.error,
+                              ),
+                              label: Text(_isTargetDetected ? 'Target Detected' : 'Wrong Video'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _simulateFastForward(45.0),
+                              icon: const Icon(CupertinoIcons.forward_end_alt_fill, size: 18),
+                              label: const Text('Seek +45s (Clamped)'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -273,7 +514,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
             onPressed: () => _webViewController?.reload(),
           ),
         ],
-        bottom: _loadingProgress < 1.0
+        bottom: _loadingProgress < 1.0 && !kIsWeb
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(2),
                 child: LinearProgressIndicator(
@@ -287,42 +528,45 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
       ),
       body: Stack(
         children: [
-          InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(initialUrl)),
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              isElementFullscreenEnabled: true,
-              supportMultipleWindows: false,
+          if (kIsWeb)
+            _buildWebSimulatorView()
+          else
+            InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(initialUrl)),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                mediaPlaybackRequiresUserGesture: false,
+                allowsInlineMediaPlayback: true,
+                isElementFullscreenEnabled: true,
+                supportMultipleWindows: false,
+              ),
+              initialUserScripts: UnmodifiableListView<UserScript>([
+                UserScript(
+                  source: YouTubeJsTracker.trackingScript,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                ),
+                UserScript(
+                  source: YouTubeJsTracker.trackingScript,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+                ),
+              ]),
+              onWebViewCreated: (controller) {
+                _webViewController = controller;
+                controller.addJavaScriptHandler(
+                  handlerName: 'YouTubeTracker',
+                  callback: _handleTrackerMessage,
+                );
+              },
+              onLoadStop: (controller, url) async {
+                setState(() => _loadingProgress = 1.0);
+                await controller.evaluateJavascript(source: YouTubeJsTracker.trackingScript);
+              },
+              onProgressChanged: (controller, progress) {
+                setState(() {
+                  _loadingProgress = progress / 100.0;
+                });
+              },
             ),
-            initialUserScripts: UnmodifiableListView<UserScript>([
-              UserScript(
-                source: YouTubeJsTracker.trackingScript,
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-              ),
-              UserScript(
-                source: YouTubeJsTracker.trackingScript,
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
-              ),
-            ]),
-            onWebViewCreated: (controller) {
-              _webViewController = controller;
-              controller.addJavaScriptHandler(
-                handlerName: 'YouTubeTracker',
-                callback: _handleTrackerMessage,
-              );
-            },
-            onLoadStop: (controller, url) async {
-              setState(() => _loadingProgress = 1.0);
-              await controller.evaluateJavascript(source: YouTubeJsTracker.trackingScript);
-            },
-            onProgressChanged: (controller, progress) {
-              setState(() {
-                _loadingProgress = progress / 100.0;
-              });
-            },
-          ),
 
           // Floating Tracking HUD Overlay
           TrackingHudOverlay(

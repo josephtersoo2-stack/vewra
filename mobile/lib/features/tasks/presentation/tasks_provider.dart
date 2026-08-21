@@ -90,6 +90,11 @@ class TasksProvider extends ChangeNotifier {
     }
   }
 
+  void markTaskCompleted(int taskId) {
+    fetchTasks();
+  }
+
+
   void clearCurrentTask() {
     _currentTaskDetail = null;
     _activeSession = null;

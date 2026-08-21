@@ -107,6 +107,13 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void updateWalletBalance(double newBalance) {
+    if (_user != null) {
+      _user = _user!.copyWith(walletBalance: newBalance);
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     _user = null;
@@ -114,3 +121,4 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
+

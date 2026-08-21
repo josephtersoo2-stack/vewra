@@ -5,14 +5,15 @@ class ApiEndpoints {
   // Configurable base URL
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://127.0.0.1:8000/api/v1';
+      return 'http://127.0.0.1:8001/api/v1';
     }
     if (Platform.isAndroid) {
       // 10.0.2.2 is the special alias to host loopback interface on Android Emulator
-      return 'http://10.0.2.2:8000/api/v1';
+      return 'http://10.0.2.2:8001/api/v1';
     }
-    return 'http://127.0.0.1:8000/api/v1';
+    return 'http://127.0.0.1:8001/api/v1';
   }
+
 
   // Auth
   static const String register = '/auth/register/';

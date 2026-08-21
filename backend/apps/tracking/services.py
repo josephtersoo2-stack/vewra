@@ -75,10 +75,11 @@ class RewardCalculator:
             coins = Decimal(str(reward_config.get('coins', 100)))
             target_seconds = float(reward_config.get('target_seconds', 300))
 
-            if new_total_seconds >= target_seconds:
+            if new_total_seconds >= target_seconds or current_time >= target_seconds:
                 coins_earned = coins
                 is_completed = True
                 description = f"Earned {coins} coins for reaching target {target_seconds}s"
+
 
         return coins_earned, is_completed, description
 

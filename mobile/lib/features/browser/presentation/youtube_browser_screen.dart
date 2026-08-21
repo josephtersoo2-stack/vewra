@@ -554,7 +554,13 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
                 mediaPlaybackRequiresUserGesture: false,
                 allowsInlineMediaPlayback: true,
                 isElementFullscreenEnabled: true,
-                supportMultipleWindows: false,
+                supportMultipleWindows: true,
+                thirdPartyCookiesEnabled: true,
+                domStorageEnabled: true,
+                databaseEnabled: true,
+                saveFormData: true,
+                sharedCookiesEnabled: true,
+                userAgent: 'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
               ),
               initialUserScripts: UnmodifiableListView<UserScript>([
                 UserScript(

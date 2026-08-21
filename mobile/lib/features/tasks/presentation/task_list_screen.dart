@@ -138,7 +138,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 24.0 + MediaQuery.paddingOf(context).bottom),
                         itemCount: tasksProvider.tasks.length + 1,
                         itemBuilder: (context, index) {
                           if (index == 0) {

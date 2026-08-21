@@ -32,8 +32,15 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // Only appear when the target video is detected or task is completed
+    if (!widget.isTargetDetected && !widget.isCompleted) {
+      return const SizedBox.shrink();
+    }
+
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
     return Positioned(
-      bottom: 24,
+      bottom: 16.0 + bottomPadding,
       left: 16,
       right: 16,
       child: AnimatedContainer(
@@ -69,22 +76,22 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                   decoration: BoxDecoration(
                     color: widget.isCompleted
                         ? AppColors.success.withOpacity(0.2)
-                        : widget.isTargetDetected
-                            ? AppColors.primary.withOpacity(0.2)
-                            : AppColors.secondary.withOpacity(0.2),
+                        : widget.isTracking
+                            ? AppColors.success.withOpacity(0.2)
+                            : AppColors.primary.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     widget.isCompleted
                         ? CupertinoIcons.check_mark_circled_solid
-                        : widget.isTargetDetected
+                        : widget.isTracking
                             ? CupertinoIcons.play_circle_fill
-                            : CupertinoIcons.search,
+                            : CupertinoIcons.pause_circle_fill,
                     color: widget.isCompleted
                         ? AppColors.success
-                        : widget.isTargetDetected
-                            ? AppColors.primary
-                            : AppColors.secondary,
+                        : widget.isTracking
+                            ? AppColors.success
+                            : AppColors.primary,
                     size: 20,
                   ),
                 ),
@@ -98,17 +105,17 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                       Text(
                         widget.isCompleted
                             ? 'Task Completed! 🎉'
-                            : widget.isTargetDetected
-                                ? (widget.isTracking ? 'Tracking Watch Time...' : 'Target Video Paused')
-                                : 'Searching Target Video...',
+                            : widget.isTracking
+                                ? 'Tracking Watch Time...'
+                                : 'Target Video Paused',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: widget.isCompleted
                               ? AppColors.success
-                              : widget.isTargetDetected
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
+                              : widget.isTracking
+                                  ? AppColors.success
+                                  : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -168,61 +175,6 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
               ],
             ),
 
-            // Search Prompt Banner when searching target video
-            if (!widget.isTargetDetected && !widget.isCompleted && widget.task.instruction != null) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.background.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.search, size: 14, color: AppColors.secondary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        widget.task.instruction!.searchQuery,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: widget.task.instruction!.searchQuery));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Search phrase copied! Paste into YouTube search.'),
-                            backgroundColor: AppColors.success,
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(CupertinoIcons.doc_on_doc, size: 12, color: AppColors.primaryLight),
-                            SizedBox(width: 4),
-                            Text('Copy', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
             // Expanded Helper Info
             if (_isExpanded) ...[
               const Divider(color: AppColors.divider, height: 16),
@@ -232,7 +184,7 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Target Video: ${widget.task.title}',
+                      'Target: ${widget.task.title}',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -243,10 +195,10 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Search phrase: "${widget.task.instruction?.searchQuery ?? widget.task.title}"',
+                      'Target Video ID: ${widget.task.videoId}',
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondary,
+                        fontSize: 11,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],

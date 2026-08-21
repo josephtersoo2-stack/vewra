@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'package:provider/provider.dart';
@@ -507,6 +508,22 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (widget.task.instruction != null)
+            IconButton(
+              icon: const Icon(CupertinoIcons.doc_on_doc, size: 18),
+              tooltip: 'Copy Search Phrase',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: widget.task.instruction!.searchQuery));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Search phrase copied! Paste into YouTube search.'),
+                    backgroundColor: AppColors.success,
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(CupertinoIcons.refresh, size: 20),
             tooltip: 'Reload Page',

@@ -50,7 +50,7 @@ class _WalletScreenState extends State<WalletScreen> {
         backgroundColor: AppColors.surfaceCard,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 32.0 + MediaQuery.paddingOf(context).bottom),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

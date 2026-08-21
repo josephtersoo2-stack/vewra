@@ -20,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
         title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 32.0 + MediaQuery.paddingOf(context).bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

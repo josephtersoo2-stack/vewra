@@ -90,185 +90,189 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     ],
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Video Thumbnail & Play Badge
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              height: 190,
-                              width: double.infinity,
-                              color: AppColors.surface,
-                              child: task.thumbnailUrl != null
-                                  ? Image.network(
-                                      task.thumbnailUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const Center(
+              : SafeArea(
+                  top: false,
+                  bottom: true,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 32.0 + MediaQuery.paddingOf(context).bottom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Video Thumbnail & Play Badge
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                height: 190,
+                                width: double.infinity,
+                                color: AppColors.surface,
+                                child: task.thumbnailUrl != null
+                                    ? Image.network(
+                                        task.thumbnailUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                          child: Icon(CupertinoIcons.video_camera, color: AppColors.textMuted, size: 40),
+                                        ),
+                                      )
+                                    : const Center(
                                         child: Icon(CupertinoIcons.video_camera, color: AppColors.textMuted, size: 40),
                                       ),
-                                    )
-                                  : const Center(
-                                      child: Icon(CupertinoIcons.video_camera, color: AppColors.textMuted, size: 40),
-                                    ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
-                                shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                CupertinoIcons.play_arrow_solid,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            if (task.isCompletedByUser)
-                              Positioned(
-                                top: 12,
-                                right: 12,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.white, size: 14),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'COMPLETED',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.7),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  CupertinoIcons.play_arrow_solid,
+                                  color: Colors.white,
+                                  size: 28,
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Title
-                      Text(
-                        task.title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Reward Configuration Card
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceCard,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.coinGold.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.coinGold.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 18),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Reward Rule',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
+                              if (task.isCompletedByUser)
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.white, size: 14),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'COMPLETED',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    task.rewardSummary,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.coinGold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (task.watchedSeconds > 0)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Text(
-                                    'Watched',
-                                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                  ),
-                                  Text(
-                                    Formatters.formatDuration(task.watchedSeconds),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Randomized Instruction Card
-                      if (task.instruction != null) ...[
-                        InstructionCard(instruction: task.instruction!),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Start Task / Resume Task Action Button
-                      SizedBox(
-                        height: 54,
-                        child: ElevatedButton.icon(
-                          onPressed: _isStarting ? null : _onStartTask,
-                          icon: _isStarting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : const Icon(CupertinoIcons.arrow_right_circle_fill, size: 22),
-                          label: Text(
-                            task.isCompletedByUser
-                                ? 'Browse Again (Completed)'
-                                : task.watchedSeconds > 0
-                                    ? 'Resume Task'
-                                    : 'Start Task & Open Browser',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 18),
+
+                        // Title
+                        Text(
+                          task.title,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            height: 1.3,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Reward Configuration Card
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceCard,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.coinGold.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.coinGold.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 18),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Reward Rule',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      task.rewardSummary,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.coinGold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (task.watchedSeconds > 0)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text(
+                                      'Watched',
+                                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    ),
+                                    Text(
+                                      Formatters.formatDuration(task.watchedSeconds),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Randomized Instruction Card
+                        if (task.instruction != null) ...[
+                          InstructionCard(instruction: task.instruction!),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Start Task / Resume Task Action Button
+                        SizedBox(
+                          height: 54,
+                          child: ElevatedButton.icon(
+                            onPressed: _isStarting ? null : _onStartTask,
+                            icon: _isStarting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(CupertinoIcons.arrow_right_circle_fill, size: 22),
+                            label: Text(
+                              task.isCompletedByUser
+                                  ? 'Browse Again (Completed)'
+                                  : task.watchedSeconds > 0
+                                      ? 'Resume Task'
+                                      : 'Start Task & Open Browser',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
     );

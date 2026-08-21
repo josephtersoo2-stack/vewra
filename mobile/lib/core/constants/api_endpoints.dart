@@ -1,18 +1,19 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
+
 class ApiEndpoints {
-  // Configurable base URL
+  // Host IP of PC on local Wi-Fi for physical phone testing
+  static const String serverHost = '192.168.1.45';
+  static const int serverPort = 8001;
+
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://127.0.0.1:8001/api/v1';
+      return 'http://127.0.0.1:$serverPort/api/v1';
     }
-    if (Platform.isAndroid) {
-      // 10.0.2.2 is the special alias to host loopback interface on Android Emulator
-      return 'http://10.0.2.2:8001/api/v1';
-    }
-    return 'http://127.0.0.1:8001/api/v1';
+    // Used by physical Android devices & emulators on local network
+    return 'http://$serverHost:$serverPort/api/v1';
   }
+
 
 
   // Auth

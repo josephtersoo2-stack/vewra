@@ -51,8 +51,40 @@ class YouTubeJsTracker {
     return null;
   }
 
+  function checkAuthStatus() {
+    try {
+      if (typeof window.ytcfg !== 'undefined' && typeof window.ytcfg.get === 'function') {
+        var ytLoggedIn = window.ytcfg.get('LOGGED_IN');
+        if (ytLoggedIn === true) return true;
+        if (ytLoggedIn === false) return false;
+      }
+      if (window.ytcfg && window.ytcfg.data_ && typeof window.ytcfg.data_.LOGGED_IN !== 'undefined') {
+        if (window.ytcfg.data_.LOGGED_IN === true) return true;
+        if (window.ytcfg.data_.LOGGED_IN === false) return false;
+      }
+      var cookies = document.cookie || '';
+      if (cookies.indexOf('LOGIN_INFO=') !== -1 || cookies.indexOf('SID=') !== -1 || cookies.indexOf('SSID=') !== -1 || cookies.indexOf('HSID=') !== -1 || cookies.indexOf('APISID=') !== -1) {
+        return true;
+      }
+      var avatarBtn = document.querySelector('button.yt-spec-button-shape-next[aria-label*="Account"]') || 
+                      document.querySelector('ytm-account-item-renderer') ||
+                      document.querySelector('#avatar-btn') ||
+                      document.querySelector('ytm-topbar-menu-button-renderer') ||
+                      document.querySelector('a[href*="/channel/"]') ||
+                      document.querySelector('img[src*="googleusercontent.com"]');
+      var signInBtn = document.querySelector('ytm-sign-in-button-renderer') || 
+                      document.querySelector('a[href*="accounts.google.com/ServiceLogin"]');
+      if (avatarBtn && !signInBtn) return true;
+      if (signInBtn) return false;
+    } catch(e) {}
+    return false;
+  }
+
   function notifyFlutter(payload) {
     if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+      if (typeof payload === 'object' && payload !== null) {
+        payload.isGoogleLoggedIn = checkAuthStatus();
+      }
       window.flutter_inappwebview.callHandler('YouTubeTracker', payload);
     }
   }
@@ -167,10 +199,22 @@ class YouTubeJsTracker {
   window.addEventListener('yt-navigate-finish', checkUrlChange);
   window.addEventListener('yt-page-data-updated', checkUrlChange);
 
-  // Periodic heartbeat every 1000ms: monitors DOM recreation and URL mutations
+  var lastReportedAuthState = null;
+
+  // Periodic heartbeat every 1000ms: monitors DOM recreation, URL mutations, and Auth state
   window.__vewraCheckState = function() {
     checkUrlChange();
     attachVideoListeners();
+
+    var currentAuth = checkAuthStatus();
+    if (currentAuth !== lastReportedAuthState) {
+      lastReportedAuthState = currentAuth;
+      notifyFlutter({
+        eventType: 'auth_state_changed',
+        isGoogleLoggedIn: currentAuth,
+        videoId: currentVideoId
+      });
+    }
   };
 
   setInterval(window.__vewraCheckState, 1000);
@@ -178,6 +222,12 @@ class YouTubeJsTracker {
   // Initial execution
   checkUrlChange();
   attachVideoListeners();
+  lastReportedAuthState = checkAuthStatus();
+  notifyFlutter({
+    eventType: 'auth_state_changed',
+    isGoogleLoggedIn: lastReportedAuthState,
+    videoId: currentVideoId
+  });
 })();
 """;
 }

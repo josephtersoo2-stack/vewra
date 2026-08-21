@@ -39,6 +39,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   bool _isTargetDetected = false;
   bool _isPlaying = false;
   bool _isCompleted = false;
+  bool _isGoogleLoggedIn = false;
   double _totalWatchedSeconds = 0.0;
   double _sessionCoinsEarned = 0.0;
   double _lastReportedCurrentTime = 0.0;
@@ -55,8 +56,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     _isCompleted = widget.session.isCompleted;
 
     if (kIsWeb) {
-      // In Web preview mode, auto-detect target video initially for convenient testing
+      // In Web preview mode, auto-detect target video and login initially for convenient testing
       _isTargetDetected = true;
+      _isGoogleLoggedIn = true;
     }
   }
 
@@ -68,7 +70,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   }
 
   void _flushRemainingProgress() {
-    if (_isTargetDetected && !_isCompleted && _lastReportedCurrentTime > 0) {
+    if (_isTargetDetected && !_isCompleted && _lastReportedCurrentTime > 0 && (_isGoogleLoggedIn || kIsWeb)) {
       _sendProgress(0.0, _lastReportedCurrentTime);
     }
   }
@@ -81,12 +83,16 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     final videoId = data['videoId']?.toString();
     final currentTime = (data['currentTime'] is num) ? (data['currentTime'] as num).toDouble() : 0.0;
     final isPlaying = data['isPlaying'] == true;
+    final bool? isGoogleLoggedIn = data['isGoogleLoggedIn'] as bool?;
 
     final isTarget = (videoId != null && videoId == widget.task.videoId);
 
     setState(() {
       _isTargetDetected = isTarget;
       _isPlaying = isPlaying;
+      if (isGoogleLoggedIn != null) {
+        _isGoogleLoggedIn = isGoogleLoggedIn;
+      }
     });
 
     if (isTarget) {
@@ -100,6 +106,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     required bool isPlaying,
   }) {
     if (_isCompleted || !_isTargetDetected) return;
+
+    // Do not accumulate / send watch progress if not logged in to Google account
+    if (!_isGoogleLoggedIn && !kIsWeb) return;
 
     final now = DateTime.now();
     final elapsedWallTime = now.difference(_lastProgressPingTime).inMilliseconds / 1000.0;
@@ -122,7 +131,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   }
 
   Future<void> _sendProgress(double deltaSeconds, double currentTime) async {
-    // Strictly verify target video is detected and session is not completed
+    // Strictly verify target video is detected, user is logged in, and session is not completed
+    if (!_isTargetDetected || _isCompleted || (!_isGoogleLoggedIn && !kIsWeb)) return;
     if (_isCompleted || !_isTargetDetected) return;
 
     // Ensure delta is never negative and capped at 15.0 seconds
@@ -590,6 +600,63 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
               },
             ),
 
+          // Google Login Required Notice Banner (Auto-dismisses when user logs in)
+          if (!_isGoogleLoggedIn && !kIsWeb)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFD97706), // Amber-600 warning
+                  boxShadow: [
+                    BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Google Login Required',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Text(
+                            'Sign in to YouTube to start earning coins from watch time.',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        _webViewController?.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri('https://accounts.google.com/ServiceLogin?service=youtube&continue=https://m.youtube.com'),
+                          ),
+                        );
+                      },
+                      child: const Text('Sign In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Floating Tracking HUD Overlay
           TrackingHudOverlay(
             task: widget.task,
@@ -598,6 +665,14 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
             totalWatchedSeconds: _totalWatchedSeconds,
             sessionCoinsEarned: _sessionCoinsEarned,
             isCompleted: _isCompleted,
+            isGoogleLoggedIn: _isGoogleLoggedIn,
+            onSignInTap: () {
+              _webViewController?.loadUrl(
+                urlRequest: URLRequest(
+                  url: WebUri('https://accounts.google.com/ServiceLogin?service=youtube&continue=https://m.youtube.com'),
+                ),
+              );
+            },
           ),
         ],
       ),

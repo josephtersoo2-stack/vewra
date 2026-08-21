@@ -29,6 +29,7 @@ class BrowserTab {
   WatchSessionModel? session;
   bool isTargetDetected;
   bool isPlaying;
+  bool isGoogleLoggedIn;
   double totalWatchedSeconds;
   double sessionCoinsEarned;
   bool isCompleted;
@@ -48,6 +49,7 @@ class BrowserTab {
     this.session,
     this.isTargetDetected = false,
     this.isPlaying = false,
+    this.isGoogleLoggedIn = false,
     this.totalWatchedSeconds = 0.0,
     this.sessionCoinsEarned = 0.0,
     this.isCompleted = false,
@@ -227,6 +229,7 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
     final videoId = data['videoId']?.toString();
     final currentTime = (data['currentTime'] is num) ? (data['currentTime'] as num).toDouble() : 0.0;
     final isPlaying = data['isPlaying'] == true;
+    final bool? isGoogleLoggedIn = data['isGoogleLoggedIn'] as bool?;
 
     // Check if videoId matches ANY active VideoTask from TasksProvider
     final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
@@ -238,25 +241,26 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
       }
     }
 
-    if (matchedTask != null) {
-      setState(() {
+    setState(() {
+      if (isGoogleLoggedIn != null) {
+        tab.isGoogleLoggedIn = isGoogleLoggedIn;
+      }
+      if (matchedTask != null) {
         tab.detectedTask = matchedTask;
         tab.isTargetDetected = true;
         tab.isPlaying = isPlaying;
-      });
+      } else if (tab.isTargetDetected) {
+        tab.isTargetDetected = false;
+        tab.isPlaying = false;
+      }
+    });
 
+    if (matchedTask != null) {
       // Initialize session if not started
       if (tab.session == null) {
         _startSessionForTab(tab, matchedTask);
       } else {
         _processPlaybackUpdate(tab, eventType: eventType, currentTime: currentTime, isPlaying: isPlaying);
-      }
-    } else {
-      if (tab.isTargetDetected) {
-        setState(() {
-          tab.isTargetDetected = false;
-          tab.isPlaying = false;
-        });
       }
     }
   }
@@ -284,6 +288,9 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
   }) {
     if (tab.isCompleted || !tab.isTargetDetected || tab.session == null) return;
 
+    // Do not accumulate / send watch progress if not logged in to Google account
+    if (!tab.isGoogleLoggedIn && !kIsWeb) return;
+
     final now = DateTime.now();
     final elapsedWallTime = now.difference(tab.lastProgressPingTime).inMilliseconds / 1000.0;
 
@@ -303,7 +310,7 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
   }
 
   Future<void> _sendProgress(BrowserTab tab, double deltaSeconds, double currentTime) async {
-    if (tab.isCompleted || !tab.isTargetDetected || tab.session == null) return;
+    if (tab.isCompleted || !tab.isTargetDetected || tab.session == null || (!tab.isGoogleLoggedIn && !kIsWeb)) return;
 
     final double safeDelta = deltaSeconds.clamp(0.0, 15.0);
     final double effectiveDelta = safeDelta > 0 ? safeDelta : 2.5;
@@ -727,6 +734,63 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
             }).toList(),
           ),
 
+          // Google Login Required Notice Banner (Auto-dismisses when user logs in)
+          if (!tab.isHomePage && !tab.isGoogleLoggedIn && !kIsWeb)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFD97706), // Amber-600 warning
+                  boxShadow: [
+                    BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Google Login Required',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Text(
+                            'Sign in to YouTube to start earning coins from watch time.',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        tab.controller?.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri('https://accounts.google.com/ServiceLogin?service=youtube&continue=https://m.youtube.com'),
+                          ),
+                        );
+                      },
+                      child: const Text('Sign In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Universal Tracking HUD Overlay (Appears ONLY when active tab is on target video)
           if (tab.isTargetDetected && tab.detectedTask != null)
             TrackingHudOverlay(
@@ -736,6 +800,14 @@ class _GeneralBrowserScreenState extends State<GeneralBrowserScreen> {
               totalWatchedSeconds: tab.totalWatchedSeconds,
               sessionCoinsEarned: tab.sessionCoinsEarned,
               isCompleted: tab.isCompleted,
+              isGoogleLoggedIn: tab.isGoogleLoggedIn,
+              onSignInTap: () {
+                tab.controller?.loadUrl(
+                  urlRequest: URLRequest(
+                    url: WebUri('https://accounts.google.com/ServiceLogin?service=youtube&continue=https://m.youtube.com'),
+                  ),
+                );
+              },
             ),
         ],
       ),

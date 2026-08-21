@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mobile/core/constants/app_colors.dart';
 import 'package:mobile/core/utils/formatters.dart';
 import 'package:mobile/features/tasks/domain/video_task_model.dart';
@@ -12,6 +11,8 @@ class TrackingHudOverlay extends StatefulWidget {
   final double totalWatchedSeconds;
   final double sessionCoinsEarned;
   final bool isCompleted;
+  final bool isGoogleLoggedIn;
+  final VoidCallback? onSignInTap;
 
   const TrackingHudOverlay({
     super.key,
@@ -21,6 +22,8 @@ class TrackingHudOverlay extends StatefulWidget {
     required this.totalWatchedSeconds,
     required this.sessionCoinsEarned,
     required this.isCompleted,
+    this.isGoogleLoggedIn = true,
+    this.onSignInTap,
   });
 
   @override
@@ -50,11 +53,13 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
           color: AppColors.surfaceCard.withOpacity(0.96),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: widget.isCompleted
-                ? AppColors.success
-                : widget.isTargetDetected
-                    ? AppColors.primary
-                    : AppColors.border,
+            color: !widget.isGoogleLoggedIn
+                ? AppColors.warning
+                : widget.isCompleted
+                    ? AppColors.success
+                    : widget.isTargetDetected
+                        ? AppColors.primary
+                        : AppColors.border,
             width: 1.5,
           ),
           boxShadow: [
@@ -74,24 +79,30 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: widget.isCompleted
-                        ? AppColors.success.withOpacity(0.2)
-                        : widget.isTracking
+                    color: !widget.isGoogleLoggedIn
+                        ? AppColors.warning.withOpacity(0.2)
+                        : widget.isCompleted
                             ? AppColors.success.withOpacity(0.2)
-                            : AppColors.primary.withOpacity(0.2),
+                            : widget.isTracking
+                                ? AppColors.success.withOpacity(0.2)
+                                : AppColors.primary.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    widget.isCompleted
-                        ? CupertinoIcons.check_mark_circled_solid
-                        : widget.isTracking
-                            ? CupertinoIcons.play_circle_fill
-                            : CupertinoIcons.pause_circle_fill,
-                    color: widget.isCompleted
-                        ? AppColors.success
-                        : widget.isTracking
+                    !widget.isGoogleLoggedIn
+                        ? CupertinoIcons.exclamationmark_triangle_fill
+                        : widget.isCompleted
+                            ? CupertinoIcons.check_mark_circled_solid
+                            : widget.isTracking
+                                ? CupertinoIcons.play_circle_fill
+                                : CupertinoIcons.pause_circle_fill,
+                    color: !widget.isGoogleLoggedIn
+                        ? AppColors.warning
+                        : widget.isCompleted
                             ? AppColors.success
-                            : AppColors.primary,
+                            : widget.isTracking
+                                ? AppColors.success
+                                : AppColors.primary,
                     size: 20,
                   ),
                 ),
@@ -103,29 +114,42 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.isCompleted
-                            ? 'Task Completed! 🎉'
-                            : widget.isTracking
-                                ? 'Tracking Watch Time...'
-                                : 'Target Video Paused',
+                        !widget.isGoogleLoggedIn
+                            ? 'Google Sign-In Required'
+                            : widget.isCompleted
+                                ? 'Task Completed! 🎉'
+                                : widget.isTracking
+                                    ? 'Tracking Watch Time...'
+                                    : 'Target Video Paused',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: widget.isCompleted
-                              ? AppColors.success
-                              : widget.isTracking
+                          color: !widget.isGoogleLoggedIn
+                              ? AppColors.warning
+                              : widget.isCompleted
                                   ? AppColors.success
-                                  : AppColors.textPrimary,
+                                  : widget.isTracking
+                                      ? AppColors.success
+                                      : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(CupertinoIcons.time, size: 12, color: AppColors.textMuted),
+                          Icon(
+                            !widget.isGoogleLoggedIn ? CupertinoIcons.lock_fill : CupertinoIcons.time,
+                            size: 12,
+                            color: !widget.isGoogleLoggedIn ? AppColors.warning : AppColors.textMuted,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            'Watched: ${Formatters.formatDuration(widget.totalWatchedSeconds)}',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            !widget.isGoogleLoggedIn
+                                ? 'Must be logged in to earn coins'
+                                : 'Watched: ${Formatters.formatDuration(widget.totalWatchedSeconds)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: !widget.isGoogleLoggedIn ? AppColors.warning : AppColors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -133,30 +157,44 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                   ),
                 ),
 
-                // Coins Earned Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.coinGold.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.coinGold.withOpacity(0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 12),
-                      const SizedBox(width: 5),
-                      Text(
-                        '+${Formatters.formatCoins(widget.sessionCoinsEarned)}',
-                        style: const TextStyle(
-                          color: AppColors.coinGold,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
+                // Coins Earned Pill or Sign In Button
+                if (!widget.isGoogleLoggedIn)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.warning,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: widget.onSignInTap,
+                    child: const Text('Sign In', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.coinGold.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.coinGold.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 12),
+                        const SizedBox(width: 5),
+                        Text(
+                          '+${Formatters.formatCoins(widget.sessionCoinsEarned)}',
+                          style: const TextStyle(
+                            color: AppColors.coinGold,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
                 const SizedBox(width: 6),
                 // Expand / Collapse Info Toggle

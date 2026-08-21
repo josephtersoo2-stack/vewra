@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'apps.tasks',
     'apps.wallet',
     'apps.tracking',
+    'apps.ai_service',
 ]
 
 MIDDLEWARE = [

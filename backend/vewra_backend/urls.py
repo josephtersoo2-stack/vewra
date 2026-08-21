@@ -7,4 +7,5 @@ urlpatterns = [
     path('api/v1/tasks/', include('apps.tasks.urls')),
     path('api/v1/tracking/', include('apps.tracking.urls')),
     path('api/v1/wallet/', include('apps.wallet.urls')),
+    path('api/v1/ai/', include('apps.ai_service.urls')),
 ]

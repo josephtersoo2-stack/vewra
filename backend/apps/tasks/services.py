@@ -38,38 +38,29 @@ def extract_youtube_video_id(url: str) -> str:
 def generate_randomized_instruction(task, user=None) -> dict:
     """
     Generates a personalized randomized search instruction for the user
-    based on the task's keywords and title.
+    based on the task's AI-generated keyword search phrases and title.
     """
-    keywords = task.keywords if isinstance(task.keywords, list) else []
-    title = task.title or ""
+    keywords = [str(k).strip() for k in task.keywords] if isinstance(task.keywords, list) else []
+    keywords = [k for k in keywords if k]
+    title = (task.title or "").strip()
     
-    # Use user id and task id as seed for deterministic-per-user-session variation if desired,
-    # or purely dynamic
+    # Use user id and task id as seed for deterministic-per-user-session variation
     seed_val = f"{user.id if user else 0}_{task.id}_{random.randint(1, 1000)}"
     rng = random.Random(seed_val)
 
     search_query = ""
-    if keywords and len(keywords) > 0:
-        # Pick 2-4 keywords or mix with title
-        sample_size = min(len(keywords), rng.randint(2, max(2, len(keywords))))
-        selected_keywords = rng.sample(keywords, sample_size)
-        rng.shuffle(selected_keywords)
-        search_query = " ".join(selected_keywords)
+    if keywords:
+        # Select one high-relevance search phrase from the keyword options
+        search_query = rng.choice(keywords)
     elif title:
-        # Fallback to title keywords
-        words = [w for w in title.split() if len(w) > 2]
-        if words:
-            sample_size = min(len(words), rng.randint(3, max(3, len(words))))
-            search_query = " ".join(rng.sample(words, sample_size))
-        else:
-            search_query = title
+        search_query = title
     else:
         search_query = "trending videos"
 
     instruction_text = (
-        f"1. Tap 'Start Task' to open the YouTube browser.\n"
-        f"2. Search YouTube for: \"{search_query}\"\n"
-        f"3. Locate and tap the video titled \"{title}\".\n"
+        f"1. Tap 'Start Task' to open YouTube in the browser.\n"
+        f"2. Copy and paste (or type) this search query into YouTube: \"{search_query}\"\n"
+        f"3. Locate and tap the video matching \"{title}\".\n"
         f"4. Watch the video to automatically accumulate rewards!"
     )
 

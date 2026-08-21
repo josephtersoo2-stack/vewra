@@ -495,9 +495,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initialUrl = widget.task.instruction?.searchQuery.isNotEmpty == true
-        ? 'https://m.youtube.com/results?search_query=${Uri.encodeComponent(widget.task.instruction!.searchQuery)}'
-        : 'https://m.youtube.com';
+    // Open clean YouTube home page without auto-populating search
+    const initialUrl = 'https://m.youtube.com';
 
     return Scaffold(
       appBar: AppBar(

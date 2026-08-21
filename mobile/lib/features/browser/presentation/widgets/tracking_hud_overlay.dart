@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile/core/constants/app_colors.dart';
 import 'package:mobile/core/utils/formatters.dart';
 import 'package:mobile/features/tasks/domain/video_task_model.dart';
@@ -167,6 +168,61 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
               ],
             ),
 
+            // Search Prompt Banner when searching target video
+            if (!widget.isTargetDetected && !widget.isCompleted && widget.task.instruction != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.background.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.search, size: 14, color: AppColors.secondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.task.instruction!.searchQuery,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: widget.task.instruction!.searchQuery));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Search phrase copied! Paste into YouTube search.'),
+                            backgroundColor: AppColors.success,
+                            duration: Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.doc_on_doc, size: 12, color: AppColors.primaryLight),
+                            SizedBox(width: 4),
+                            Text('Copy', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryLight)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Expanded Helper Info
             if (_isExpanded) ...[
               const Divider(color: AppColors.divider, height: 16),
@@ -176,24 +232,23 @@ class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Target: ${widget.task.title}',
+                      'Target Video: ${widget.task.title}',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    if (widget.task.instruction != null)
-                      Text(
-                        'Search query: "${widget.task.instruction!.searchQuery}"',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.secondary,
-                        ),
+                    Text(
+                      'Search phrase: "${widget.task.instruction?.searchQuery ?? widget.task.title}"',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondary,
                       ),
+                    ),
                   ],
                 ),
               ),

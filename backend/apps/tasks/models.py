@@ -51,6 +51,20 @@ class VideoTask(models.Model):
         elif self.youtube_url and not self.video_id:
             self.video_id = extract_youtube_video_id(self.youtube_url)
             
+        # Auto-fetch title/keywords/thumbnail if missing
+        if self.video_id and (not self.title or not self.keywords):
+            try:
+                from apps.ai_service.services import generate_video_keywords
+                ai_data = generate_video_keywords(self.youtube_url or self.video_id, title_override=self.title or None)
+                if not self.title and ai_data.get('title'):
+                    self.title = ai_data['title']
+                if not self.thumbnail_url and ai_data.get('thumbnail_url'):
+                    self.thumbnail_url = ai_data['thumbnail_url']
+                if not self.keywords and ai_data.get('keywords'):
+                    self.keywords = ai_data['keywords']
+            except Exception:
+                pass
+
         if not self.thumbnail_url and self.video_id:
             self.thumbnail_url = f"https://img.youtube.com/vi/{self.video_id}/hqdefault.jpg"
             

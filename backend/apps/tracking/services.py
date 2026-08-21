@@ -52,9 +52,19 @@ class RewardCalculator:
 
         elif reward_type == 'watch_all':
             coins = Decimal(str(reward_config.get('coins', 150)))
-            # Default threshold: 95% of video duration or specified duration
-            duration = float(reward_config.get('duration', 180))
-            threshold = float(reward_config.get('target_percent', 95)) / 100.0 * duration if 'target_percent' in reward_config else duration * 0.95
+            duration_val = reward_config.get('duration')
+            if duration_val is None:
+                raise ValidationError("Reward config must specify 'duration' for 'watch_all' reward type.")
+            try:
+                duration = float(duration_val)
+                if duration <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise ValidationError("Invalid 'duration' in reward config for 'watch_all'.")
+
+            # Default completion threshold is 95% of duration, or target_percent if specified
+            target_percent = float(reward_config.get('target_percent', 95))
+            threshold = duration * (target_percent / 100.0)
 
             if new_total_seconds >= threshold or current_time >= threshold:
                 coins_earned = coins
@@ -83,6 +93,13 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
     if current_time < 0:
         raise ValidationError("Current time cannot be negative.")
 
+    # Progress safety clamp:
+    # Clamp delta_seconds to a maximum of 15.0 seconds per request to prevent cheating,
+    # client manipulation, or exaggerated delta updates during network hiccups.
+    MAX_ALLOWED_DELTA = 15.0
+    if delta_seconds > MAX_ALLOWED_DELTA:
+        delta_seconds = MAX_ALLOWED_DELTA
+
     with transaction.atomic():
         try:
             session = WatchSession.objects.select_for_update().get(id=session_id, user=user)
@@ -104,6 +121,7 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
 
         old_total = session.total_watched_seconds
         new_total = old_total + delta_seconds
+        # Monotonic position: ensure current_position does not jump backward
         new_position = max(session.current_position, current_time)
 
         task = session.video_task
@@ -115,6 +133,7 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
             current_time=new_position,
             already_completed=session.is_completed
         )
+
 
         # Update session
         session.total_watched_seconds = new_total

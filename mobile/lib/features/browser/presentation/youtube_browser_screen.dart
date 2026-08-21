@@ -89,19 +89,19 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     required double currentTime,
     required bool isPlaying,
   }) {
-    if (_isCompleted) return;
+    if (_isCompleted || !_isTargetDetected) return;
 
     final now = DateTime.now();
     final elapsedWallTime = now.difference(_lastProgressPingTime).inMilliseconds / 1000.0;
 
-    // Calculate sensible delta seconds
+    // Calculate sensible delta seconds safely
     double deltaSeconds = 0.0;
     if (_lastReportedCurrentTime > 0 && currentTime > _lastReportedCurrentTime) {
       final timeDiff = currentTime - _lastReportedCurrentTime;
-      // Filter out seeking forward jumps
-      deltaSeconds = timeDiff <= 5.0 ? timeDiff : 3.0;
+      // Filter out forward seeks/jumps: cap max incremental chunk to 15s
+      deltaSeconds = timeDiff.clamp(0.0, 15.0);
     } else if (isPlaying && elapsedWallTime >= 2.5) {
-      deltaSeconds = elapsedWallTime.clamp(1.0, 5.0);
+      deltaSeconds = elapsedWallTime.clamp(0.0, 15.0);
     }
 
     if (elapsedWallTime >= 3.0 || eventType == 'pause' || eventType == 'ended') {
@@ -112,26 +112,36 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
   }
 
   Future<void> _sendProgress(double deltaSeconds, double currentTime) async {
-    if (_isCompleted) return;
+    // Strictly verify target video is detected and session is not completed
+    if (_isCompleted || !_isTargetDetected) return;
+
+    // Ensure delta is never negative and capped at 15.0 seconds
+    final double safeDelta = deltaSeconds.clamp(0.0, 15.0);
+    final double effectiveDelta = safeDelta > 0 ? safeDelta : 2.5;
 
     _lastProgressPingTime = DateTime.now();
     _lastReportedCurrentTime = currentTime;
+
+    debugPrint(
+      '[Vewra Tracker] Sending progress ping: sessionId=${widget.session.id}, targetId=${widget.task.videoId}, currentTime=$currentTime, deltaSeconds=$effectiveDelta',
+    );
 
     try {
       final res = await _taskRepo.sendWatchProgress(
         sessionId: widget.session.id,
         currentTime: currentTime,
-        deltaSeconds: deltaSeconds > 0 ? deltaSeconds : 2.5,
+        deltaSeconds: effectiveDelta,
       );
 
       final coinsEarned = (res['coins_earned'] is num) ? (res['coins_earned'] as num).toDouble() : 0.0;
       final totalWatched = (res['total_watched_seconds'] is num)
           ? (res['total_watched_seconds'] as num).toDouble()
-          : _totalWatchedSeconds + deltaSeconds;
+          : _totalWatchedSeconds + effectiveDelta;
       final completed = res['is_completed'] as bool? ?? false;
       final walletBal = (res['wallet_balance'] is num) ? (res['wallet_balance'] as num).toDouble() : null;
 
       if (!mounted) return;
+
 
       setState(() {
         _totalWatchedSeconds = totalWatched;

@@ -64,6 +64,17 @@ class RewardCalculatorTestCase(TestCase):
         self.assertEqual(coins, Decimal('200.00'))
         self.assertTrue(completed)
 
+    def test_watch_all_missing_duration_raises_error(self):
+        from django.core.exceptions import ValidationError
+        config = {'coins': 200}
+        with self.assertRaises(ValidationError):
+            RewardCalculator.calculate(
+                reward_type='watch_all',
+                reward_config=config,
+                old_total_seconds=0,
+                new_total_seconds=95
+            )
+
     def test_target_reward(self):
         config = {'coins': 120, 'target_seconds': 300}
 
@@ -117,25 +128,38 @@ class TrackingIntegrationTestCase(TestCase):
         )
 
     def test_process_watch_progress_accumulates_coins_and_ledger(self):
-        # First ping: 30 seconds
+        # First ping: 10 seconds
         res1 = process_watch_progress(
             user=self.user,
             session_id=self.session.id,
-            current_time=30.0,
-            delta_seconds=30.0
+            current_time=10.0,
+            delta_seconds=10.0
         )
         self.assertEqual(res1['coins_earned'], 0.0)
         self.assertEqual(res1['wallet_balance'], 0.0)
 
-        # Second ping: 35 seconds (total 65s) -> triggers +10 coins
+        # Second ping: 50 seconds (should be clamped to 15s per ping, total becomes 25s)
         res2 = process_watch_progress(
             user=self.user,
             session_id=self.session.id,
-            current_time=65.0,
-            delta_seconds=35.0
+            current_time=25.0,
+            delta_seconds=50.0 # Clamped to 15.0s
         )
-        self.assertEqual(res2['coins_earned'], 10.0)
-        self.assertEqual(res2['wallet_balance'], 10.0)
+        self.assertEqual(res2['total_watched_seconds'], 25.0)
+        self.assertEqual(res2['coins_earned'], 0.0)
+
+        # Ping up to 65s (four 10s pings: 25 -> 35 -> 45 -> 55 -> 65s)
+        for t in [35.0, 45.0, 55.0, 65.0]:
+            res = process_watch_progress(
+                user=self.user,
+                session_id=self.session.id,
+                current_time=t,
+                delta_seconds=10.0
+            )
+
+        self.assertEqual(res['coins_earned'], 10.0)
+        self.assertEqual(res['wallet_balance'], 10.0)
+        self.assertEqual(res['total_watched_seconds'], 65.0)
 
         # Check wallet transaction ledger
         transactions = WalletTransaction.objects.filter(wallet=self.wallet)
@@ -144,3 +168,4 @@ class TrackingIntegrationTestCase(TestCase):
         self.assertEqual(tx.amount, Decimal('10.00'))
         self.assertEqual(tx.balance_after, Decimal('10.00'))
         self.assertEqual(tx.transaction_type, 'watch_reward')
+

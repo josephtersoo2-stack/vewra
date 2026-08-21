@@ -25,6 +25,26 @@ class VideoTask(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+    def clean(self):
+        super().clean()
+        if self.reward_type == 'watch_all':
+            cfg = self.reward_config or {}
+            duration = cfg.get('duration')
+            if duration is None:
+                from django.core.exceptions import ValidationError
+                raise ValidationError({
+                    'reward_config': "Reward config must specify a valid 'duration' in seconds for 'watch_all' reward type."
+                })
+            try:
+                duration_val = float(duration)
+                if duration_val <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                from django.core.exceptions import ValidationError
+                raise ValidationError({
+                    'reward_config': "'duration' must be a positive number of seconds for 'watch_all' reward type."
+                })
+
     def save(self, *args, **kwargs):
         if not self.video_id and self.youtube_url:
             self.video_id = extract_youtube_video_id(self.youtube_url)
@@ -34,7 +54,9 @@ class VideoTask(models.Model):
         if not self.thumbnail_url and self.video_id:
             self.thumbnail_url = f"https://img.youtube.com/vi/{self.video_id}/hqdefault.jpg"
             
+        self.clean()
         super().save(*args, **kwargs)
+
 
     @property
     def reward_summary(self) -> str:

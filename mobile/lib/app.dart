@@ -37,9 +37,10 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.watch<AuthProvider>(context);
+    final authProvider = context.watch<AuthProvider>();
 
     if (authProvider.status == AuthStatus.authenticating && authProvider.user == null) {
+
       return const Scaffold(
         body: Center(
           child: Column(

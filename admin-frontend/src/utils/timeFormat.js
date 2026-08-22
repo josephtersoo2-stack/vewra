@@ -24,3 +24,19 @@ export function formatWatchDuration(totalSeconds, unit = 'auto') {
   }
   return `${(s / 3600).toFixed(2)} hrs`;
 }
+
+/**
+ * Formats viewer numbers into compact human-readable format (e.g. 10, 100, 1.2k, 5M).
+ * @param {number} count
+ * @returns {string}
+ */
+export function formatViewerCount(count) {
+  const n = Number(count) || 0;
+  if (n >= 1000000) {
+    return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return String(n);
+}

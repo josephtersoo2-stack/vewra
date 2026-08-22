@@ -11,6 +11,8 @@ import {
   RefreshCw,
   Clock,
   Timer,
+  Calendar,
+  ChevronDown,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -29,34 +31,53 @@ import { Badge } from '../components/ui/Badge';
 import { useTheme } from '../theme/ThemeContext';
 import { formatWatchDuration } from '../utils/timeFormat';
 
+const RANGE_OPTIONS = [
+  { value: '1h', label: '1 Hour' },
+  { value: '1d', label: '1 Day (24h)' },
+  { value: '7d', label: '7 Days' },
+  { value: '30d', label: '30 Days' },
+  { value: '6m', label: '6 Months' },
+  { value: '1y', label: '1 Year' },
+];
+
 export function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState('');
   const [timeUnit, setTimeUnit] = useState('hours'); // 'seconds', 'minutes', 'hours'
+  const [chartRange, setChartRange] = useState('7d'); // '1h', '1d', '7d', '30d', '6m', '1y'
   const { isDark } = useTheme();
   const navigate = useNavigate();
 
-  const fetchStats = async (isManual = false) => {
+  const fetchStats = async (isManual = false, rangeToFetch = chartRange) => {
     if (isManual) setRefreshing(true);
     try {
-      const stats = await adminApi.getDashboardStats();
+      const stats = await adminApi.getDashboardStats({ range: rangeToFetch });
       setData(stats);
+      setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
       console.error('Failed to fetch dashboard stats', err);
     } finally {
       setLoading(false);
-      if (isManual) setTimeout(() => setRefreshing(false), 500);
+      if (isManual) {
+        setTimeout(() => setRefreshing(false), 600);
+      }
     }
   };
 
   useEffect(() => {
-    fetchStats();
+    fetchStats(false, chartRange);
     const interval = setInterval(() => {
-      fetchStats();
+      fetchStats(false, chartRange);
     }, 5000); // 5s live polling
     return () => clearInterval(interval);
-  }, []);
+  }, [chartRange]);
+
+  const handleRangeChange = (newRange) => {
+    setChartRange(newRange);
+    fetchStats(true, newRange);
+  };
 
   if (loading && !data) {
     return (
@@ -70,6 +91,7 @@ export function DashboardPage() {
   const trends = data?.daily_trends || [];
   const recent = data?.recent_activity || [];
   const totalWatchSec = kpis.total_watch_seconds_all_videos || 0;
+  const currentRangeLabel = RANGE_OPTIONS.find((r) => r.value === chartRange)?.label || '7 Days';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -154,25 +176,40 @@ export function DashboardPage() {
             </button>
           </div>
 
-          <button
-            onClick={() => fetchStats(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 16px',
-              borderRadius: 'var(--btn-radius)',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-card)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={16} className={refreshing ? 'pulse-badge' : ''} />
-            <span>Refresh</span>
-          </button>
+          {/* Refresh Button with Active Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => fetchStats(true, chartRange)}
+              disabled={refreshing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 16px',
+                borderRadius: 'var(--btn-radius)',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-card)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <RefreshCw
+                size={16}
+                style={{
+                  animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
+                  color: refreshing ? 'var(--primary)' : 'inherit',
+                }}
+              />
+              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+            {lastRefreshedAt && (
+              <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }} title="Last synchronized timestamp">
+                Synced {lastRefreshedAt}
+              </span>
+            )}
+          </div>
 
           <button
             onClick={() => navigate('/tasks')}
@@ -197,7 +234,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Hero KPI Cards */}
+      {/* 5 Hero KPI Cards */}
       <div
         style={{
           display: 'grid',
@@ -206,7 +243,7 @@ export function DashboardPage() {
         }}
       >
         <StatCard
-          title="Total Watch Time (All Videos)"
+          title="Total Watch Time (Task Videos)"
           value={formatWatchDuration(totalWatchSec, timeUnit)}
           subtitle={
             timeUnit === 'hours'
@@ -228,11 +265,11 @@ export function DashboardPage() {
         />
 
         <StatCard
-          title="Active Watch Sessions"
+          title="Active Watch Sessions (Live)"
           value={kpis.active_sessions_now || 0}
-          subtitle="Watching YouTube right now"
+          subtitle={kpis.active_sessions_now > 0 ? "Watching video right now" : "No viewers active in last 15s"}
           icon={PlayCircle}
-          color="emerald"
+          color={kpis.active_sessions_now > 0 ? "emerald" : "indigo"}
         />
 
         <StatCard
@@ -260,18 +297,51 @@ export function DashboardPage() {
           gap: '24px',
         }}
       >
-        {/* Watch Time Trend Chart */}
+        {/* Watch Time Trend Chart with Interactive Range Filter */}
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div>
               <h3 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                Daily Watch Time ({timeUnit === 'hours' ? 'Hours' : timeUnit === 'minutes' ? 'Minutes' : 'Seconds'})
+                Watch Time Trend ({timeUnit === 'hours' ? 'Hours' : timeUnit === 'minutes' ? 'Minutes' : 'Seconds'})
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Total user view duration across the last 7 days
+                Duration watched across the selected period ({currentRangeLabel})
               </p>
             </div>
-            <Badge variant="indigo">7-Day Area</Badge>
+
+            {/* Range Selection Dropdown / Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={15} style={{ color: 'var(--text-tertiary)' }} />
+              <select
+                value={chartRange}
+                onChange={(e) => handleRangeChange(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--btn-radius)',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-card)',
+                  color: 'var(--primary)',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                {RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div style={{ height: '260px', width: '100%' }}>
@@ -324,18 +394,50 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Coins Distributed Trend Chart */}
+        {/* Coins Distributed Trend Chart with Linked Range Filter */}
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
             <div>
               <h3 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-primary)' }}>
                 Coin Disbursements
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Daily coin rewards issued for completed watch sessions
+                Reward disbursements across {currentRangeLabel}
               </p>
             </div>
-            <Badge variant="amber">7-Day Bar</Badge>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={15} style={{ color: 'var(--text-tertiary)' }} />
+              <select
+                value={chartRange}
+                onChange={(e) => handleRangeChange(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--btn-radius)',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-card)',
+                  color: 'var(--accent-amber)',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                {RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div style={{ height: '260px', width: '100%' }}>
@@ -352,6 +454,7 @@ export function DashboardPage() {
                     color: 'var(--text-primary)',
                     boxShadow: 'var(--shadow-md)',
                   }}
+                  formatter={(value) => [`${value} coins`, 'Disbursed']}
                 />
                 <Bar
                   dataKey="coins_earned"
@@ -387,7 +490,7 @@ export function DashboardPage() {
               cursor: 'pointer',
             }}
           >
-            View All Sessions →
+            Open Telemetry Center →
           </button>
         </div>
 
@@ -403,7 +506,7 @@ export function DashboardPage() {
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>User</th>
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Video Task</th>
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Watched Time</th>
-                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Live State</th>
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Last Active</th>
                 </tr>
               </thead>
@@ -428,10 +531,12 @@ export function DashboardPage() {
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      {s.is_completed ? (
-                        <Badge variant="emerald">Completed</Badge>
+                      {s.is_live ? (
+                        <Badge variant="rose">🔴 Watching Live</Badge>
+                      ) : s.is_completed ? (
+                        <Badge variant="emerald">✓ Completed</Badge>
                       ) : (
-                        <Badge variant="amber">Watching</Badge>
+                        <Badge variant="amber">⏸ Not Watching</Badge>
                       )}
                     </td>
                     <td style={{ padding: '14px 16px', color: 'var(--text-tertiary)' }}>

@@ -3,59 +3,69 @@ import {
   PlayCircle,
   Search,
   RefreshCw,
-  CheckCircle2,
   Clock,
-  ShieldAlert,
-  User,
   Radio,
+  Users,
   Timer,
+  ExternalLink,
+  Coins,
+  CheckCircle2,
+  Eye,
 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { Badge } from '../components/ui/Badge';
-import { formatWatchDuration } from '../utils/timeFormat';
+import { VideoUsersWatchedModal } from './VideoUsersWatchedModal';
+import { formatWatchDuration, formatViewerCount } from '../utils/timeFormat';
 
 export function WatchSessionsPage() {
-  const [sessions, setSessions] = useState([]);
+  const [videoTasks, setVideoTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterMode, setFilterMode] = useState('all'); // 'all' or 'live'
+  const [filterMode, setFilterMode] = useState('all'); // 'all', 'live', 'idle'
   const [timeUnit, setTimeUnit] = useState('minutes'); // 'seconds', 'minutes', 'hours'
   const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState('');
 
-  const loadSessions = async (isManual = false) => {
+  // Selected video for the Users Watched popup modal
+  const [selectedTaskForModal, setSelectedTaskForModal] = useState(null);
+
+  const loadTelemetry = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      let data = [];
-      if (filterMode === 'live') {
-        data = await adminApi.getLiveWatchSessions();
-      } else {
-        data = await adminApi.getWatchSessions({ search });
-      }
-      setSessions(data);
+      const data = await adminApi.getVideoTelemetry({ search });
+      setVideoTasks(data || []);
+      setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
-      console.error('Failed to load watch sessions', err);
+      console.error('Failed to load video telemetry', err);
     } finally {
       setLoading(false);
-      if (isManual) setRefreshing(false);
+      if (isManual) setTimeout(() => setRefreshing(false), 500);
     }
   };
 
   useEffect(() => {
-    loadSessions();
+    loadTelemetry();
     const interval = setInterval(() => {
-      loadSessions();
+      loadTelemetry();
     }, 4000); // 4s live polling
     return () => clearInterval(interval);
-  }, [filterMode, search]);
+  }, [search]);
 
-  const filteredSessions = sessions.filter((s) => {
+  const filteredTasks = videoTasks.filter((t) => {
     const q = search.toLowerCase();
-    return (
-      (s.username || '').toLowerCase().includes(q) ||
-      (s.video_task_title || '').toLowerCase().includes(q) ||
-      (s.video_task_id || '').toLowerCase().includes(q)
-    );
+    const matchSearch =
+      (t.title || '').toLowerCase().includes(q) ||
+      (t.video_id || '').toLowerCase().includes(q);
+
+    if (!matchSearch) return false;
+
+    if (filterMode === 'live') return t.live_viewers_count > 0;
+    if (filterMode === 'idle') return t.live_viewers_count === 0;
+    return true;
   });
+
+  const totalLiveViewers = videoTasks.reduce((acc, t) => acc + (t.live_viewers_count || 0), 0);
+  const liveVideosCount = videoTasks.filter((t) => t.live_viewers_count > 0).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -66,12 +76,12 @@ export function WatchSessionsPage() {
             Watch Sessions & Telemetry
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Real-time playback position tracking and completed watch validations
+            Real-time playback telemetry per video with 15-second inactivity tracking
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Live vs All Filter Tabs */}
+          {/* Live vs Idle Filter Tabs */}
           <div
             style={{
               display: 'flex',
@@ -94,7 +104,7 @@ export function WatchSessionsPage() {
                 cursor: 'pointer',
               }}
             >
-              All Sessions
+              All Videos ({videoTasks.length})
             </button>
             <button
               onClick={() => setFilterMode('live')}
@@ -103,7 +113,7 @@ export function WatchSessionsPage() {
                 borderRadius: '6px',
                 border: 'none',
                 backgroundColor: filterMode === 'live' ? 'var(--bg-card)' : 'transparent',
-                color: filterMode === 'live' ? 'var(--accent-emerald)' : 'var(--text-secondary)',
+                color: filterMode === 'live' ? 'var(--accent-rose)' : 'var(--text-secondary)',
                 fontWeight: filterMode === 'live' ? '700' : '500',
                 fontSize: '13px',
                 cursor: 'pointer',
@@ -112,8 +122,23 @@ export function WatchSessionsPage() {
                 gap: '6px',
               }}
             >
-              <Radio size={14} className={filterMode === 'live' ? 'pulse-badge' : ''} />
-              <span>Live Watching</span>
+              <Radio size={14} className={liveVideosCount > 0 ? 'pulse-badge' : ''} />
+              <span>Watching Live ({liveVideosCount})</span>
+            </button>
+            <button
+              onClick={() => setFilterMode('idle')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: filterMode === 'idle' ? 'var(--bg-card)' : 'transparent',
+                color: filterMode === 'idle' ? 'var(--accent-amber)' : 'var(--text-secondary)',
+                fontWeight: filterMode === 'idle' ? '700' : '500',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              Not Watching ({videoTasks.length - liveVideosCount})
             </button>
           </div>
 
@@ -178,38 +203,47 @@ export function WatchSessionsPage() {
             </button>
           </div>
 
-          <button
-            onClick={() => loadSessions(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: 'var(--btn-radius)',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-card)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={14} className={refreshing ? 'pulse-badge' : ''} />
-            <span>Sync</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => loadTelemetry(true)}
+              disabled={refreshing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: 'var(--btn-radius)',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-card)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <RefreshCw
+                size={14}
+                style={{
+                  animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
+                  color: refreshing ? 'var(--primary)' : 'inherit',
+                }}
+              />
+              <span>{refreshing ? 'Syncing...' : 'Sync'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
             <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter by username, video title..."
+              placeholder="Search by video task title, YouTube ID..."
               style={{
                 width: '100%',
                 padding: '10px 14px 10px 42px',
@@ -222,103 +256,160 @@ export function WatchSessionsPage() {
             />
           </div>
 
-          <Badge variant={filterMode === 'live' ? 'emerald' : 'indigo'} size="md">
-            {filteredSessions.length} {filterMode === 'live' ? 'Active Streams' : 'Sessions Total'}
-          </Badge>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Badge variant="rose" size="md">
+              🔴 {formatViewerCount(totalLiveViewers)} Total Watching Live
+            </Badge>
+            <Badge variant="indigo" size="md">
+              {filteredTasks.length} Tasks Monitored
+            </Badge>
+          </div>
         </div>
       </div>
 
-      {/* Sessions Table */}
+      {/* Video-Based Telemetry Table */}
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        {loading && sessions.length === 0 ? (
+        {loading && videoTasks.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            Loading watch sessions...
+            Loading video telemetry stream...
           </div>
-        ) : filteredSessions.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-            {filterMode === 'live' ? 'No active live watching streams right now.' : 'No watch sessions recorded yet.'}
+            {filterMode === 'live'
+              ? 'No videos currently have active live viewers in the last 15 seconds.'
+              : 'No video tasks found matching query.'}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)' }}>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>User</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Target Video</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Video Task</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Live Viewers (Realtime)</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Total Users Watched</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Timer size={14} style={{ color: 'var(--primary)' }} />
-                      <span>Watched Time ({timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'})</span>
+                      <span>Total Watched ({timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'})</span>
                     </div>
                   </th>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Highest Position</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Status</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Last Active</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Completed Count</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600', textAlign: 'right' }}>Telemetry Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSessions.map((s) => (
+                {filteredTasks.map((t) => (
                   <tr
-                    key={s.id}
+                    key={t.id}
                     style={{
                       borderBottom: '1px solid var(--border-subtle)',
                       color: 'var(--text-primary)',
+                      backgroundColor: t.live_viewers_count > 0 ? 'var(--primary-light)' : 'transparent',
                     }}
                   >
+                    {/* Video Info */}
                     <td style={{ padding: '16px 18px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <img
+                          src={t.thumbnail_url || `https://img.youtube.com/vi/${t.video_id}/hqdefault.jpg`}
+                          alt={t.title}
                           style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--primary-light)',
-                            color: 'var(--primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: '700',
+                            width: '74px',
+                            height: '48px',
+                            borderRadius: '6px',
+                            objectFit: 'cover',
+                            border: '1px solid var(--border-subtle)',
                           }}
-                        >
-                          {s.username?.[0]?.toUpperCase() || 'U'}
+                        />
+                        <div style={{ maxWidth: '320px' }}>
+                          <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)', lineHeight: '1.3' }}>
+                            {t.title}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                            <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }}>
+                              {t.video_id}
+                            </span>
+                            <a
+                              href={t.youtube_url || `https://www.youtube.com/watch?v=${t.video_id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
                         </div>
-                        <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
-                          {s.username}
-                        </span>
                       </div>
                     </td>
 
-                    <td style={{ padding: '16px 18px', maxWidth: '340px' }}>
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {s.video_task_title}
-                      </div>
-                      <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                        {s.video_task_id}
-                      </div>
-                    </td>
-
+                    {/* Real-Time Live Viewers */}
                     <td style={{ padding: '16px 18px' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: 'var(--primary)', fontSize: '14px' }}>
-                        {formatWatchDuration(s.total_watched_seconds, timeUnit)}
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '16px 18px' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                        {formatWatchDuration(s.highest_position_seconds, timeUnit)}
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '16px 18px' }}>
-                      {s.is_completed ? (
-                        <Badge variant="emerald">Completed</Badge>
+                      {t.live_viewers_count > 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Badge variant="rose" size="md">
+                            🔴 {formatViewerCount(t.live_viewers_count)} Watching Live
+                          </Badge>
+                        </div>
                       ) : (
-                        <Badge variant="amber">Watching</Badge>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)' }}>
+                          <Badge variant="amber" size="sm">
+                            ⏸ Not Watching (0 live)
+                          </Badge>
+                        </div>
                       )}
                     </td>
 
-                    <td style={{ padding: '16px 18px', color: 'var(--text-tertiary)' }}>
-                      {new Date(s.updated_at).toLocaleString()}
+                    {/* Total Users Watched */}
+                    <td style={{ padding: '16px 18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '14px' }}>
+                        <Users size={15} style={{ color: 'var(--primary)' }} />
+                        <span>{formatViewerCount(t.total_unique_users_watched)} users</span>
+                      </div>
+                    </td>
+
+                    {/* Total Watched Duration */}
+                    <td style={{ padding: '16px 18px' }}>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: '700',
+                          color: Number(t.total_watch_seconds) > 0 ? 'var(--primary)' : 'var(--text-tertiary)',
+                          fontSize: '14px',
+                        }}
+                      >
+                        {formatWatchDuration(t.total_watch_seconds || 0, timeUnit)}
+                      </span>
+                    </td>
+
+                    {/* Completed Count */}
+                    <td style={{ padding: '16px 18px' }}>
+                      <span style={{ fontWeight: '600', color: 'var(--accent-emerald)' }}>
+                        ✓ {t.completed_count || 0} finished
+                      </span>
+                    </td>
+
+                    {/* Action: Users Watched Popup */}
+                    <td style={{ padding: '16px 18px', textAlign: 'right' }}>
+                      <button
+                        onClick={() => setSelectedTaskForModal(t)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 'var(--btn-radius)',
+                          backgroundColor: 'var(--primary)',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px var(--primary-glow)',
+                        }}
+                      >
+                        <Eye size={14} />
+                        <span>Users Watched ({t.total_unique_users_watched})</span>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -327,6 +418,13 @@ export function WatchSessionsPage() {
           </div>
         )}
       </div>
+
+      {/* Users Watched Detail Modal Popup */}
+      <VideoUsersWatchedModal
+        isOpen={!!selectedTaskForModal}
+        onClose={() => setSelectedTaskForModal(null)}
+        videoTask={selectedTaskForModal}
+      />
     </div>
   );
 }

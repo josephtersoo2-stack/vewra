@@ -33,20 +33,71 @@ class IsAdminOrStaff(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser))
 
 
+def get_chart_intervals(range_key):
+    now = timezone.now()
+    intervals = []
+
+    if range_key == '1h':
+        # 6 intervals of 10 minutes
+        for i in range(6):
+            start = now - timedelta(minutes=(6 - i) * 10)
+            end = now - timedelta(minutes=(5 - i) * 10)
+            label = start.strftime('%H:%M')
+            intervals.append((start, end, label))
+    elif range_key in ['1d', '24h']:
+        # 12 intervals of 2 hours
+        for i in range(12):
+            start = now - timedelta(hours=(12 - i) * 2)
+            end = now - timedelta(hours=(11 - i) * 2)
+            label = start.strftime('%H:%M')
+            intervals.append((start, end, label))
+    elif range_key in ['30d', '1m']:
+        # 10 intervals of 3 days
+        for i in range(10):
+            start = now - timedelta(days=(10 - i) * 3)
+            end = now - timedelta(days=(9 - i) * 3)
+            label = start.strftime('%b %d')
+            intervals.append((start, end, label))
+    elif range_key in ['6m']:
+        # 6 intervals of 30 days
+        for i in range(6):
+            start = now - timedelta(days=(6 - i) * 30)
+            end = now - timedelta(days=(5 - i) * 30)
+            label = start.strftime('%b %Y')
+            intervals.append((start, end, label))
+    elif range_key in ['1y', '12m']:
+        # 12 intervals of 30 days
+        for i in range(12):
+            start = now - timedelta(days=(12 - i) * 30)
+            end = now - timedelta(days=(11 - i) * 30)
+            label = start.strftime('%b %Y')
+            intervals.append((start, end, label))
+    else:  # default '7d'
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        seven_days_ago = today_start - timedelta(days=6)
+        for i in range(7):
+            start = seven_days_ago + timedelta(days=i)
+            end = start + timedelta(days=1)
+            label = start.strftime('%b %d')
+            intervals.append((start, end, label))
+
+    return intervals
+
+
 class DashboardStatsView(APIView):
     permission_classes = [IsAdminOrStaff]
 
     def get(self, request):
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        five_mins_ago = now - timedelta(minutes=5)
-        seven_days_ago = today_start - timedelta(days=6)
+        fifteen_secs_ago = now - timedelta(seconds=15)
+        range_key = request.query_params.get('range', '7d').lower()
 
         # KPIs
         total_users = User.objects.count()
         new_users_today = User.objects.filter(date_joined__gte=today_start).count()
         active_sessions_now = WatchSession.objects.filter(
-            Q(last_watched_at__gte=five_mins_ago) | Q(updated_at__gte=five_mins_ago),
+            last_watched_at__gte=fifteen_secs_ago,
             is_completed=False
         ).count()
         
@@ -60,31 +111,29 @@ class DashboardStatsView(APIView):
             updated_at__gte=today_start
         ).count()
         active_tasks_count = VideoTask.objects.filter(is_active=True).count()
-        total_watch_seconds_all_videos = WatchSession.objects.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
+        total_watch_seconds_all_videos = WatchSession.objects.filter(video_task__isnull=False).aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
 
-        # 7-day chart trend data
+        # Dynamic Range Trend Buckets
+        intervals = get_chart_intervals(range_key)
         daily_trends = []
-        for i in range(7):
-            day_start = seven_days_ago + timedelta(days=i)
-            day_end = day_start + timedelta(days=1)
-            day_label = day_start.strftime('%b %d')
-
-            day_watch_seconds = WatchSession.objects.filter(
-                updated_at__gte=day_start,
-                updated_at__lt=day_end
+        for start_dt, end_dt, label in intervals:
+            watch_sec = WatchSession.objects.filter(
+                updated_at__gte=start_dt,
+                updated_at__lt=end_dt
             ).aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
 
-            day_coins = WalletTransaction.objects.filter(
-                created_at__gte=day_start,
-                created_at__lt=day_end,
+            coins_amt = WalletTransaction.objects.filter(
+                created_at__gte=start_dt,
+                created_at__lt=end_dt,
                 transaction_type__in=['earned_watch', 'reward', 'admin_credit']
             ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
             daily_trends.append({
-                'date': day_label,
-                'watch_seconds': round(float(day_watch_seconds), 1),
-                'watch_minutes': round(float(day_watch_seconds) / 60.0, 1),
-                'coins_earned': float(day_coins),
+                'date': label,
+                'watch_seconds': round(float(watch_sec), 1),
+                'watch_minutes': round(float(watch_sec) / 60.0, 1),
+                'watch_hours': round(float(watch_sec) / 3600.0, 2),
+                'coins_earned': float(coins_amt),
             })
 
         # Recent activity stream
@@ -93,9 +142,10 @@ class DashboardStatsView(APIView):
             {
                 'id': s.id,
                 'username': s.user.username,
-                'task_title': s.video_task.title,
+                'task_title': s.video_task.title if s.video_task else 'Unknown Task',
                 'watched_seconds': round(s.total_watched_seconds, 1),
                 'is_completed': s.is_completed,
+                'is_live': bool(s.last_watched_at and s.last_watched_at >= fifteen_secs_ago and not s.is_completed),
                 'updated_at': s.updated_at.isoformat(),
             }
             for s in recent_sessions
@@ -114,6 +164,7 @@ class DashboardStatsView(APIView):
             },
             'daily_trends': daily_trends,
             'recent_activity': recent_activity,
+            'range': range_key,
         })
 
 
@@ -178,13 +229,137 @@ class AdminWatchSessionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='live')
     def live_sessions(self, request):
-        five_mins_ago = timezone.now() - timedelta(minutes=5)
+        fifteen_secs_ago = timezone.now() - timedelta(seconds=15)
         qs = WatchSession.objects.select_related('user', 'video_task').filter(
-            Q(last_watched_at__gte=five_mins_ago) | Q(updated_at__gte=five_mins_ago),
+            last_watched_at__gte=fifteen_secs_ago,
             is_completed=False
         ).order_by('-updated_at')
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='video-telemetry')
+    def video_telemetry(self, request):
+        now = timezone.now()
+        fifteen_secs_ago = now - timedelta(seconds=15)
+        search = request.query_params.get('search', '').strip()
+
+        tasks = VideoTask.objects.all()
+        if search:
+            tasks = tasks.filter(Q(title__icontains=search) | Q(video_id__icontains=search))
+
+        results = []
+        for task in tasks:
+            sessions = task.sessions.all()
+            total_unique_users = sessions.values('user').distinct().count()
+            total_watch_seconds = sessions.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
+            
+            # Real-time live viewers currently streaming (heartbeat <= 15s ago and not finished)
+            live_viewers_count = sessions.filter(
+                last_watched_at__gte=fifteen_secs_ago,
+                is_completed=False
+            ).count()
+
+            completed_count = sessions.filter(is_completed=True).count()
+            latest_session = sessions.order_by('-last_watched_at', '-updated_at').first()
+
+            results.append({
+                'id': task.id,
+                'title': task.title,
+                'video_id': task.video_id,
+                'youtube_url': task.youtube_url,
+                'thumbnail_url': task.thumbnail_url,
+                'reward_type': task.reward_type,
+                'reward_config': task.reward_config,
+                'is_active': task.is_active,
+                'live_viewers_count': live_viewers_count,
+                'is_live_now': live_viewers_count > 0,
+                'total_unique_users_watched': total_unique_users,
+                'total_watch_seconds': round(float(total_watch_seconds), 1),
+                'completed_count': completed_count,
+                'last_activity': latest_session.last_watched_at.isoformat() if (latest_session and latest_session.last_watched_at) else None,
+                'created_at': task.created_at.isoformat(),
+            })
+
+        # Sort: Currently playing videos at the top (by live_viewers_count desc), then highest total views
+        results.sort(
+            key=lambda x: (
+                1 if x['live_viewers_count'] > 0 else 0,
+                x['live_viewers_count'],
+                x['total_watch_seconds'],
+                x['total_unique_users_watched']
+            ),
+            reverse=True
+        )
+
+        return Response(results)
+
+    @action(detail=False, methods=['get'], url_path='video-viewers')
+    def video_viewers(self, request):
+        task_id = request.query_params.get('video_task_id')
+        if not task_id:
+            return Response({'error': 'video_task_id parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        fifteen_secs_ago = now - timedelta(seconds=15)
+        
+        sessions = WatchSession.objects.select_related('user', 'video_task').filter(video_task_id=task_id).order_by('-last_watched_at', '-updated_at')
+        
+        users_list = []
+        for s in sessions:
+            is_live = bool(s.last_watched_at and s.last_watched_at >= fifteen_secs_ago and not s.is_completed)
+            
+            if s.is_completed:
+                status_label = 'Completed'
+                status_variant = 'emerald'
+            elif is_live:
+                status_label = 'Watching Live'
+                status_variant = 'rose'
+            else:
+                status_label = 'Not Watching'
+                status_variant = 'amber'
+
+            coins_earned = 0.0
+            if s.video_task:
+                r_type = s.video_task.reward_type
+                r_cfg = s.video_task.reward_config or {}
+                if r_type == 'per_time':
+                    coin_unit = float(r_cfg.get('coins', 10))
+                    sec_unit = float(r_cfg.get('seconds', 60))
+                    coins_earned = round((s.total_watched_seconds // sec_unit) * coin_unit, 2)
+                elif r_type == 'watch_all' and s.is_completed:
+                    coins_earned = float(r_cfg.get('coins', 150))
+                elif r_type == 'target' and (s.total_watched_seconds >= float(r_cfg.get('target_seconds', 300)) or s.is_completed):
+                    coins_earned = float(r_cfg.get('coins', 100))
+
+            users_list.append({
+                'session_id': s.id,
+                'user_id': s.user.id,
+                'username': s.user.username,
+                'email': s.user.email,
+                'total_watched_seconds': round(s.total_watched_seconds, 1),
+                'current_position_seconds': round(s.current_position, 1),
+                'highest_position_seconds': round(s.current_position, 1),
+                'is_completed': s.is_completed,
+                'is_live': is_live,
+                'status_label': status_label,
+                'status_variant': status_variant,
+                'coins_earned': coins_earned,
+                'last_watched_at': s.last_watched_at.isoformat() if s.last_watched_at else s.updated_at.isoformat(),
+                'created_at': s.created_at.isoformat(),
+                'updated_at': s.updated_at.isoformat(),
+            })
+
+        # Sort: live watching users first, then highest watch time
+        users_list.sort(
+            key=lambda u: (1 if u['is_live'] else 0, u['total_watched_seconds']),
+            reverse=True
+        )
+
+        return Response({
+            'video_task_id': int(task_id),
+            'total_viewers': len(users_list),
+            'viewers': users_list
+        })
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):

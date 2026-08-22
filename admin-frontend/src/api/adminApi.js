@@ -8,8 +8,8 @@ export const adminApi = {
   },
 
   // Dashboard KPIs & Trends
-  getDashboardStats: async () => {
-    const res = await apiClient.get('/admin/stats/');
+  getDashboardStats: async (params = {}) => {
+    const res = await apiClient.get('/admin/stats/', { params });
     return res.data;
   },
 
@@ -58,13 +58,23 @@ export const adminApi = {
     return res.data;
   },
 
-  // Watch Sessions
+  // Watch Sessions & Telemetry
   getWatchSessions: async (params = {}) => {
     const res = await apiClient.get('/admin/watch-sessions/', { params });
     return res.data;
   },
   getLiveWatchSessions: async () => {
     const res = await apiClient.get('/admin/watch-sessions/live/');
+    return res.data;
+  },
+  getVideoTelemetry: async (params = {}) => {
+    const res = await apiClient.get('/admin/watch-sessions/video-telemetry/', { params });
+    return res.data;
+  },
+  getVideoViewers: async (videoTaskId) => {
+    const res = await apiClient.get('/admin/watch-sessions/video-viewers/', {
+      params: { video_task_id: videoTaskId },
+    });
     return res.data;
   },
 

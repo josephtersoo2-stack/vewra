@@ -303,16 +303,18 @@ class AdminAIFetchModelsView(APIView):
 
     def get(self, request):
         provider = request.query_params.get('provider', 'gemini').lower()
+        api_key = request.query_params.get('api_key')
         try:
-            models = get_available_models(provider)
+            models = get_available_models(provider, api_key=api_key or None)
             return Response({'success': True, 'provider': provider, 'models': models, 'count': len(models)})
         except Exception as e:
             return Response({'success': False, 'error': str(e), 'models': []}, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
         provider = request.data.get('provider', 'gemini').lower()
+        api_key = request.data.get('api_key')
         try:
-            models = get_available_models(provider)
+            models = get_available_models(provider, api_key=api_key or None)
             return Response({'success': True, 'provider': provider, 'models': models, 'count': len(models)})
         except Exception as e:
             return Response({'success': False, 'error': str(e), 'models': []}, status=status.HTTP_400_BAD_REQUEST)

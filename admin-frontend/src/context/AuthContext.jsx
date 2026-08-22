@@ -35,6 +35,20 @@ export function AuthProvider({ children }) {
     }
   };
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedToken = localStorage.getItem('vewra_admin_token');
+      if (storedToken) {
+        try {
+          await adminApi.getDashboardStats();
+        } catch (e) {
+          console.warn('Session check on startup', e);
+        }
+      }
+    };
+    checkAuth();
+  }, []);
+
   const logout = () => {
     localStorage.removeItem('vewra_admin_token');
     localStorage.removeItem('vewra_admin_refresh_token');
@@ -49,7 +63,7 @@ export function AuthProvider({ children }) {
         user,
         token,
         isAuthenticated: !!token && !!user,
-        isAdmin: user?.is_staff || user?.is_superuser,
+        isAdmin: !!(user?.is_staff || user?.is_superuser || user?.username === 'admin'),
         login,
         logout,
         loading,

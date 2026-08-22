@@ -66,13 +66,21 @@ export function AISettingsPage() {
     }
   };
 
-  const loadModels = async (provider) => {
+  const [modelFeedback, setModelFeedback] = useState('');
+
+  const loadModels = async (provider, customKey = '') => {
     setFetchingModels(true);
+    setModelFeedback('');
     try {
-      const res = await adminApi.fetchAIModels(provider);
-      setModels(res.models || []);
+      const keyToUse = customKey || (provider === 'gemini' ? geminiKey : openrouterKey);
+      const res = await adminApi.fetchAIModels(provider, keyToUse);
+      const list = res.models || [];
+      setModels(list);
+      setModelFeedback(`✓ Discovered ${list.length} models for ${provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'}`);
+      setTimeout(() => setModelFeedback(''), 4000);
     } catch (err) {
       console.error('Failed to fetch models', err);
+      setModelFeedback(`Error: ${err.response?.data?.error || err.message}`);
     } finally {
       setFetchingModels(false);
     }
@@ -344,25 +352,32 @@ export function AISettingsPage() {
                 </p>
               </div>
 
-              <button
-                onClick={() => loadModels(activeProvider)}
-                disabled={fetchingModels}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: 'var(--btn-radius)',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-card)',
-                  color: 'var(--text-primary)',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                }}
-              >
-                <RefreshCw size={14} className={fetchingModels ? 'pulse-badge' : ''} />
-                <span>{fetchingModels ? 'Fetching...' : 'Discover'}</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {modelFeedback && (
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: modelFeedback.startsWith('✓') ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                    {modelFeedback}
+                  </span>
+                )}
+                <button
+                  onClick={() => loadModels(activeProvider)}
+                  disabled={fetchingModels}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: 'var(--btn-radius)',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <RefreshCw size={14} className={fetchingModels ? 'pulse-badge' : ''} />
+                  <span>{fetchingModels ? 'Fetching...' : 'Discover'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Model Search Box */}

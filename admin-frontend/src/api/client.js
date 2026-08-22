@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
       if (refreshToken && !error.config._retry) {
         error.config._retry = true;
         try {
-          const res = await axios.post(`${getBaseUrl()}/auth/token/refresh/`, {
+          const res = await axios.post(`${getBaseUrl()}/auth/refresh/`, {
             refresh: refreshToken,
           });
           const newToken = res.data.access;

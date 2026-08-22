@@ -48,8 +48,9 @@ export const adminApi = {
     const res = await apiClient.patch('/admin/ai-settings/', data);
     return res.data;
   },
-  fetchAIModels: async (provider) => {
-    const res = await apiClient.get(`/admin/ai-settings/fetch-models/?provider=${provider}`);
+  fetchAIModels: async (provider, apiKey = '') => {
+    const q = apiKey ? `provider=${provider}&api_key=${encodeURIComponent(apiKey)}` : `provider=${provider}`;
+    const res = await apiClient.get(`/admin/ai-settings/fetch-models/?${q}`);
     return res.data;
   },
   testAISandbox: async (data) => {

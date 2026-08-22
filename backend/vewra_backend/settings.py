@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'apps.wallet',
     'apps.tracking',
     'apps.ai_service',
+    'apps.admin_api',
 ]
 
 MIDDLEWARE = [

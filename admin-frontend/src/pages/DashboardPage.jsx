@@ -10,6 +10,7 @@ import {
   Video,
   RefreshCw,
   Clock,
+  Timer,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -26,11 +27,13 @@ import { adminApi } from '../api/adminApi';
 import { StatCard } from '../components/ui/StatCard';
 import { Badge } from '../components/ui/Badge';
 import { useTheme } from '../theme/ThemeContext';
+import { formatWatchDuration } from '../utils/timeFormat';
 
 export function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [timeUnit, setTimeUnit] = useState('hours'); // 'seconds', 'minutes', 'hours'
   const { isDark } = useTheme();
   const navigate = useNavigate();
 
@@ -43,7 +46,7 @@ export function DashboardPage() {
       console.error('Failed to fetch dashboard stats', err);
     } finally {
       setLoading(false);
-      if (isManual) setRefreshing(false);
+      if (isManual) setTimeout(() => setRefreshing(false), 500);
     }
   };
 
@@ -66,6 +69,7 @@ export function DashboardPage() {
   const kpis = data?.kpis || {};
   const trends = data?.daily_trends || [];
   const recent = data?.recent_activity || [];
+  const totalWatchSec = kpis.total_watch_seconds_all_videos || 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -84,11 +88,72 @@ export function DashboardPage() {
             System Performance
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Real-time analytics and user watch session metrics
+            Real-time analytics and aggregate video watch time metrics
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Time Unit Filter Pills */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: 'var(--btn-radius)',
+              padding: '4px',
+              border: '1px solid var(--border-card)',
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-tertiary)', padding: '0 8px' }}>
+              Unit:
+            </span>
+            <button
+              onClick={() => setTimeUnit('seconds')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'seconds' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'seconds' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'seconds' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Seconds (s)
+            </button>
+            <button
+              onClick={() => setTimeUnit('minutes')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'minutes' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'minutes' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'minutes' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Minutes (m)
+            </button>
+            <button
+              onClick={() => setTimeUnit('hours')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'hours' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'hours' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'hours' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Hours (hrs)
+            </button>
+          </div>
+
           <button
             onClick={() => fetchStats(true)}
             style={{
@@ -132,20 +197,34 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* 4 Hero KPI Cards */}
+      {/* Hero KPI Cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '20px',
         }}
       >
+        <StatCard
+          title="Total Watch Time (All Videos)"
+          value={formatWatchDuration(totalWatchSec, timeUnit)}
+          subtitle={
+            timeUnit === 'hours'
+              ? `${(totalWatchSec / 60).toFixed(1)} mins (${Math.round(totalWatchSec)}s)`
+              : timeUnit === 'minutes'
+              ? `${(totalWatchSec / 3600).toFixed(2)} hrs (${Math.round(totalWatchSec)}s)`
+              : `${(totalWatchSec / 3600).toFixed(2)} hrs (${(totalWatchSec / 60).toFixed(1)} mins)`
+          }
+          icon={Timer}
+          color="indigo"
+        />
+
         <StatCard
           title="Total Registered Users"
           value={kpis.total_users || 0}
           subtitle={`+${kpis.new_users_today || 0} joined today`}
           icon={Users}
-          color="indigo"
+          color="cyan"
         />
 
         <StatCard
@@ -169,7 +248,7 @@ export function DashboardPage() {
           value={kpis.tasks_completed_today || 0}
           subtitle={`${kpis.active_tasks_count || 0} active video tasks`}
           icon={CheckCircle2}
-          color="cyan"
+          color="emerald"
         />
       </div>
 
@@ -186,7 +265,7 @@ export function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
             <div>
               <h3 style={{ fontSize: '17px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                Watch Time Trend (Minutes)
+                Daily Watch Time ({timeUnit === 'hours' ? 'Hours' : timeUnit === 'minutes' ? 'Minutes' : 'Seconds'})
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Total user view duration across the last 7 days
@@ -197,7 +276,18 @@ export function DashboardPage() {
 
           <div style={{ height: '260px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart
+                data={trends.map((t) => ({
+                  ...t,
+                  display_watch:
+                    timeUnit === 'hours'
+                      ? Number((t.watch_seconds / 3600).toFixed(2))
+                      : timeUnit === 'minutes'
+                      ? Number((t.watch_seconds / 60).toFixed(1))
+                      : Math.round(t.watch_seconds),
+                }))}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="watchGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
@@ -215,15 +305,19 @@ export function DashboardPage() {
                     color: 'var(--text-primary)',
                     boxShadow: 'var(--shadow-md)',
                   }}
+                  formatter={(value) => [
+                    `${value} ${timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'}`,
+                    'Watch Time',
+                  ]}
                 />
                 <Area
                   type="monotone"
-                  dataKey="watch_minutes"
+                  dataKey="display_watch"
                   stroke="var(--primary)"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#watchGrad)"
-                  name="Watch Minutes"
+                  name="Watch Time"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -330,7 +424,7 @@ export function DashboardPage() {
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
-                        {s.watched_seconds}s
+                        {formatWatchDuration(s.watched_seconds, timeUnit)}
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>

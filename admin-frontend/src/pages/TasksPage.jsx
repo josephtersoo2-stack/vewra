@@ -11,16 +11,19 @@ import {
   CheckCircle2,
   XCircle,
   Eye,
+  Timer,
 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { TaskModal } from './TaskModal';
 import { Badge } from '../components/ui/Badge';
 import { useTheme } from '../theme/ThemeContext';
+import { formatWatchDuration } from '../utils/timeFormat';
 
 export function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [timeUnit, setTimeUnit] = useState('minutes'); // 'seconds', 'minutes', 'hours'
   const [selectedTask, setSelectedTask] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState(null);
@@ -108,10 +111,10 @@ export function TasksPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-primary)' }}>
-            Video Tasks Management
+            Video Tasks & Watch Times
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Configure active video watching tasks, reward economics, and AI keyword pools
+            Configure active video watching tasks, inspect cumulative view durations, and manage AI keyword pools
           </p>
         </div>
 
@@ -137,10 +140,10 @@ export function TasksPage() {
         </button>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* Filter, Search & Time Unit Bar */}
       <div className="card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
             <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
             <input
               type="text"
@@ -157,6 +160,67 @@ export function TasksPage() {
                 fontSize: '13px',
               }}
             />
+          </div>
+
+          {/* Time Unit Filter Pills */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: 'var(--btn-radius)',
+              padding: '4px',
+              border: '1px solid var(--border-card)',
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-tertiary)', padding: '0 8px' }}>
+              Unit:
+            </span>
+            <button
+              onClick={() => setTimeUnit('seconds')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'seconds' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'seconds' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'seconds' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Seconds (s)
+            </button>
+            <button
+              onClick={() => setTimeUnit('minutes')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'minutes' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'minutes' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'minutes' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Minutes (m)
+            </button>
+            <button
+              onClick={() => setTimeUnit('hours')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'hours' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'hours' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'hours' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Hours (hrs)
+            </button>
           </div>
 
           <Badge variant="indigo" size="md">
@@ -182,6 +246,12 @@ export function TasksPage() {
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)' }}>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Video</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Reward Model</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Timer size={14} style={{ color: 'var(--primary)' }} />
+                      <span>Total Watched ({timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'})</span>
+                    </div>
+                  </th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Saved Keywords Pool</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Sessions</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Status</th>
@@ -213,7 +283,7 @@ export function TasksPage() {
                               border: '1px solid var(--border-subtle)',
                             }}
                           />
-                          <div style={{ maxWidth: '320px' }}>
+                          <div style={{ maxWidth: '300px' }}>
                             <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-primary)', lineHeight: '1.3' }}>
                               {t.title}
                             </div>
@@ -241,8 +311,22 @@ export function TasksPage() {
                         </Badge>
                       </td>
 
+                      {/* Total Watched per Task */}
+                      <td style={{ padding: '16px 18px' }}>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontWeight: '700',
+                            color: Number(t.total_watch_seconds) > 0 ? 'var(--primary)' : 'var(--text-tertiary)',
+                            fontSize: '14px',
+                          }}
+                        >
+                          {formatWatchDuration(t.total_watch_seconds || 0, timeUnit)}
+                        </span>
+                      </td>
+
                       {/* Keyword pool chips */}
-                      <td style={{ padding: '16px 18px', maxWidth: '300px' }}>
+                      <td style={{ padding: '16px 18px', maxWidth: '260px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                           {kwList.slice(0, 3).map((kw, i) => (
                             <span

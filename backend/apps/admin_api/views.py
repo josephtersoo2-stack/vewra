@@ -60,6 +60,7 @@ class DashboardStatsView(APIView):
             updated_at__gte=today_start
         ).count()
         active_tasks_count = VideoTask.objects.filter(is_active=True).count()
+        total_watch_seconds_all_videos = WatchSession.objects.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
 
         # 7-day chart trend data
         daily_trends = []
@@ -109,6 +110,7 @@ class DashboardStatsView(APIView):
                 'total_wallet_liabilities': str(total_wallet_liabilities),
                 'tasks_completed_today': tasks_completed_today,
                 'active_tasks_count': active_tasks_count,
+                'total_watch_seconds_all_videos': round(float(total_watch_seconds_all_videos), 1),
             },
             'daily_trends': daily_trends,
             'recent_activity': recent_activity,

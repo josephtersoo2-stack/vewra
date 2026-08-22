@@ -10,6 +10,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     wallet_balance = serializers.SerializerMethodField()
     total_sessions = serializers.SerializerMethodField()
     total_coins_earned = serializers.SerializerMethodField()
+    total_watch_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -17,7 +18,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 
             'is_staff', 'is_superuser', 'is_active', 
             'date_joined', 'last_login',
-            'wallet_balance', 'total_sessions', 'total_coins_earned'
+            'wallet_balance', 'total_sessions', 'total_coins_earned',
+            'total_watch_seconds'
         ]
 
     def get_wallet_balance(self, obj):
@@ -35,6 +37,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
         except Exception:
             return "0.00"
 
+    def get_total_watch_seconds(self, obj):
+        try:
+            from django.db.models import Sum
+            res = obj.watch_sessions.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum']
+            return round(float(res or 0.0), 1)
+        except Exception:
+            return 0.0
+
 
 from decimal import Decimal
 
@@ -46,6 +56,7 @@ class AdminUserBalanceAdjustmentSerializer(serializers.Serializer):
 
 class AdminVideoTaskSerializer(serializers.ModelSerializer):
     sessions_count = serializers.SerializerMethodField()
+    total_watch_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = VideoTask
@@ -53,11 +64,19 @@ class AdminVideoTaskSerializer(serializers.ModelSerializer):
             'id', 'title', 'video_id', 'youtube_url',
             'thumbnail_url', 'reward_type', 'reward_config', 'keywords',
             'is_active', 'created_at', 'updated_at',
-            'sessions_count'
+            'sessions_count', 'total_watch_seconds'
         ]
 
     def get_sessions_count(self, obj):
         return obj.sessions.count()
+
+    def get_total_watch_seconds(self, obj):
+        try:
+            from django.db.models import Sum
+            res = obj.sessions.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum']
+            return round(float(res or 0.0), 1)
+        except Exception:
+            return 0.0
 
 
 class AdminWatchSessionSerializer(serializers.ModelSerializer):

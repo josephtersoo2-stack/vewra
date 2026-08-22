@@ -10,15 +10,20 @@ import {
   PlusCircle,
   MinusCircle,
   CheckCircle2,
+  Timer,
+  ArrowUpDown,
 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { formatWatchDuration } from '../utils/timeFormat';
 
 export function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [timeUnit, setTimeUnit] = useState('minutes'); // 'seconds', 'minutes', 'hours'
+  const [sortBy, setSortBy] = useState('watch_time_desc'); // 'watch_time_desc', 'balance_desc', 'sessions_desc', 'joined_desc'
 
   // Balance Adjustment Modal
   const [selectedUser, setSelectedUser] = useState(null);
@@ -81,13 +86,29 @@ export function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const q = search.toLowerCase();
-    return (
-      (u.username || '').toLowerCase().includes(q) ||
-      (u.email || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredUsers = users
+    .filter((u) => {
+      const q = search.toLowerCase();
+      return (
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === 'watch_time_desc') {
+        return (Number(b.total_watch_seconds) || 0) - (Number(a.total_watch_seconds) || 0);
+      }
+      if (sortBy === 'balance_desc') {
+        return (Number(b.wallet_balance) || 0) - (Number(a.wallet_balance) || 0);
+      }
+      if (sortBy === 'sessions_desc') {
+        return (Number(b.total_sessions) || 0) - (Number(a.total_sessions) || 0);
+      }
+      if (sortBy === 'joined_desc') {
+        return new Date(b.date_joined) - new Date(a.date_joined);
+      }
+      return 0;
+    });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -95,18 +116,19 @@ export function UsersPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-primary)' }}>
-            Users & Account Roles
+            Users & Watch Durations
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Manage platform members, adjust coin balances, and review watch engagement
+            Monitor member total watch durations, grant/deduct wallet coins, and manage permissions
           </p>
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Filter & Controls Bar */}
       <div className="card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          {/* Search Input */}
+          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
             <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
             <input
               type="text"
@@ -125,8 +147,94 @@ export function UsersPage() {
             />
           </div>
 
+          {/* Time Unit Filter Pills */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: 'var(--btn-radius)',
+              padding: '4px',
+              border: '1px solid var(--border-card)',
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-tertiary)', padding: '0 8px' }}>
+              Unit:
+            </span>
+            <button
+              onClick={() => setTimeUnit('seconds')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'seconds' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'seconds' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'seconds' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Seconds (s)
+            </button>
+            <button
+              onClick={() => setTimeUnit('minutes')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'minutes' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'minutes' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'minutes' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Minutes (m)
+            </button>
+            <button
+              onClick={() => setTimeUnit('hours')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'hours' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'hours' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'hours' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Hours (hrs)
+            </button>
+          </div>
+
+          {/* Sort Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-tertiary)' }}>
+              Sort:
+            </span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 'var(--btn-radius)',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-card)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: '600',
+              }}
+            >
+              <option value="watch_time_desc">Highest Watch Time</option>
+              <option value="balance_desc">Highest Balance</option>
+              <option value="sessions_desc">Most Sessions</option>
+              <option value="joined_desc">Newest Joined</option>
+            </select>
+          </div>
+
           <Badge variant="indigo" size="md">
-            {filteredUsers.length} Users Found
+            {filteredUsers.length} Users
           </Badge>
         </div>
       </div>
@@ -148,6 +256,12 @@ export function UsersPage() {
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)' }}>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>User</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Role</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Timer size={14} style={{ color: 'var(--primary)' }} />
+                      <span>Total Watched ({timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'})</span>
+                    </div>
+                  </th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Wallet Balance</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Tasks Watched</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Status</th>
@@ -200,6 +314,20 @@ export function UsersPage() {
                       ) : (
                         <Badge variant="default">Viewer</Badge>
                       )}
+                    </td>
+
+                    {/* Total Watched per user */}
+                    <td style={{ padding: '16px 18px' }}>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: '700',
+                          color: Number(u.total_watch_seconds) > 0 ? 'var(--primary)' : 'var(--text-tertiary)',
+                          fontSize: '14px',
+                        }}
+                      >
+                        {formatWatchDuration(u.total_watch_seconds || 0, timeUnit)}
+                      </span>
                     </td>
 
                     <td style={{ padding: '16px 18px' }}>

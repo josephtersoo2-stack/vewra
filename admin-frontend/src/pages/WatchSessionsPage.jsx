@@ -8,15 +8,18 @@ import {
   ShieldAlert,
   User,
   Radio,
+  Timer,
 } from 'lucide-react';
 import { adminApi } from '../api/adminApi';
 import { Badge } from '../components/ui/Badge';
+import { formatWatchDuration } from '../utils/timeFormat';
 
 export function WatchSessionsPage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState('all'); // 'all' or 'live'
+  const [timeUnit, setTimeUnit] = useState('minutes'); // 'seconds', 'minutes', 'hours'
   const [refreshing, setRefreshing] = useState(false);
 
   const loadSessions = async (isManual = false) => {
@@ -60,16 +63,24 @@ export function WatchSessionsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-primary)' }}>
-            Watch Sessions & Progress
+            Watch Sessions & Telemetry
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Inspect real-time viewer playback positions, watch time verification, and completion status
+            Real-time playback position tracking and completed watch validations
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Tab Filter Mode */}
-          <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--btn-radius)', padding: '4px', border: '1px solid var(--border-card)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Live vs All Filter Tabs */}
+          <div
+            style={{
+              display: 'flex',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: 'var(--btn-radius)',
+              padding: '4px',
+              border: '1px solid var(--border-card)',
+            }}
+          >
             <button
               onClick={() => setFilterMode('all')}
               style={{
@@ -101,8 +112,69 @@ export function WatchSessionsPage() {
                 gap: '6px',
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-emerald)' }} />
+              <Radio size={14} className={filterMode === 'live' ? 'pulse-badge' : ''} />
               <span>Live Watching</span>
+            </button>
+          </div>
+
+          {/* Time Unit Filter Pills */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: 'var(--btn-radius)',
+              padding: '4px',
+              border: '1px solid var(--border-card)',
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-tertiary)', padding: '0 8px' }}>
+              Unit:
+            </span>
+            <button
+              onClick={() => setTimeUnit('seconds')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'seconds' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'seconds' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'seconds' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Seconds (s)
+            </button>
+            <button
+              onClick={() => setTimeUnit('minutes')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'minutes' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'minutes' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'minutes' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Minutes (m)
+            </button>
+            <button
+              onClick={() => setTimeUnit('hours')}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: timeUnit === 'hours' ? 'var(--bg-card)' : 'transparent',
+                color: timeUnit === 'hours' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: timeUnit === 'hours' ? '700' : '500',
+                fontSize: '12px',
+                cursor: 'pointer',
+              }}
+            >
+              Hours (hrs)
             </button>
           </div>
 
@@ -173,7 +245,12 @@ export function WatchSessionsPage() {
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)' }}>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>User</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Target Video</th>
-                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>Watched Time</th>
+                  <th style={{ padding: '14px 18px', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Timer size={14} style={{ color: 'var(--primary)' }} />
+                      <span>Watched Time ({timeUnit === 'hours' ? 'hrs' : timeUnit === 'minutes' ? 'mins' : 's'})</span>
+                    </div>
+                  </th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Highest Position</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Status</th>
                   <th style={{ padding: '14px 18px', fontWeight: '600' }}>Last Active</th>
@@ -205,19 +282,14 @@ export function WatchSessionsPage() {
                         >
                           {s.username?.[0]?.toUpperCase() || 'U'}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
-                            {s.username}
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                            ID #{s.user}
-                          </div>
-                        </div>
+                        <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {s.username}
+                        </span>
                       </div>
                     </td>
 
-                    <td style={{ padding: '16px 18px', maxWidth: '320px' }}>
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', lineHeight: '1.3' }}>
+                    <td style={{ padding: '16px 18px', maxWidth: '340px' }}>
+                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {s.video_task_title}
                       </div>
                       <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginTop: '2px' }}>
@@ -226,26 +298,22 @@ export function WatchSessionsPage() {
                     </td>
 
                     <td style={{ padding: '16px 18px' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: 'var(--text-primary)', fontSize: '14px' }}>
-                        {Number(s.total_watched_seconds).toFixed(1)}s
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: 'var(--primary)', fontSize: '14px' }}>
+                        {formatWatchDuration(s.total_watched_seconds, timeUnit)}
                       </span>
                     </td>
 
                     <td style={{ padding: '16px 18px' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                        {Number(s.current_position).toFixed(1)}s
+                        {formatWatchDuration(s.highest_position_seconds, timeUnit)}
                       </span>
                     </td>
 
                     <td style={{ padding: '16px 18px' }}>
                       {s.is_completed ? (
-                        <Badge variant="emerald">
-                          <CheckCircle2 size={12} /> Completed
-                        </Badge>
+                        <Badge variant="emerald">Completed</Badge>
                       ) : (
-                        <Badge variant="amber">
-                          <Clock size={12} /> In Progress
-                        </Badge>
+                        <Badge variant="amber">Watching</Badge>
                       )}
                     </td>
 

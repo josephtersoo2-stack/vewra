@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vewra_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vewra
+      POSTGRES_PASSWORD: vewra_dev
+      POSTGRES_DB: vewra
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "vewra"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

@@ -45,7 +45,7 @@ export function VideoUsersWatchedModal({ isOpen, onClose, videoTask }) {
       loadViewers();
       const interval = setInterval(() => {
         loadViewers();
-      }, 4000); // 4s live polling
+      }, 3000); // 3s live polling
       return () => clearInterval(interval);
     }
   }, [isOpen, videoTask?.id]);

@@ -90,14 +90,14 @@ class DashboardStatsView(APIView):
     def get(self, request):
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        fifteen_secs_ago = now - timedelta(seconds=15)
+        five_secs_ago = now - timedelta(seconds=5)
         range_key = request.query_params.get('range', '7d').lower()
 
         # KPIs
         total_users = User.objects.count()
         new_users_today = User.objects.filter(date_joined__gte=today_start).count()
         active_sessions_now = WatchSession.objects.filter(
-            last_watched_at__gte=fifteen_secs_ago,
+            last_watched_at__gte=five_secs_ago,
             is_completed=False
         ).count()
         
@@ -145,7 +145,7 @@ class DashboardStatsView(APIView):
                 'task_title': s.video_task.title if s.video_task else 'Unknown Task',
                 'watched_seconds': round(s.total_watched_seconds, 1),
                 'is_completed': s.is_completed,
-                'is_live': bool(s.last_watched_at and s.last_watched_at >= fifteen_secs_ago and not s.is_completed),
+                'is_live': bool(s.last_watched_at and s.last_watched_at >= five_secs_ago and not s.is_completed),
                 'updated_at': s.updated_at.isoformat(),
             }
             for s in recent_sessions
@@ -229,9 +229,9 @@ class AdminWatchSessionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='live')
     def live_sessions(self, request):
-        fifteen_secs_ago = timezone.now() - timedelta(seconds=15)
+        five_secs_ago = timezone.now() - timedelta(seconds=5)
         qs = WatchSession.objects.select_related('user', 'video_task').filter(
-            last_watched_at__gte=fifteen_secs_ago,
+            last_watched_at__gte=five_secs_ago,
             is_completed=False
         ).order_by('-updated_at')
         serializer = self.get_serializer(qs, many=True)
@@ -240,7 +240,7 @@ class AdminWatchSessionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='video-telemetry')
     def video_telemetry(self, request):
         now = timezone.now()
-        fifteen_secs_ago = now - timedelta(seconds=15)
+        five_secs_ago = now - timedelta(seconds=5)
         search = request.query_params.get('search', '').strip()
 
         tasks = VideoTask.objects.all()
@@ -253,9 +253,9 @@ class AdminWatchSessionViewSet(viewsets.ReadOnlyModelViewSet):
             total_unique_users = sessions.values('user').distinct().count()
             total_watch_seconds = sessions.aggregate(Sum('total_watched_seconds'))['total_watched_seconds__sum'] or 0.0
             
-            # Real-time live viewers currently streaming (heartbeat <= 15s ago and not finished)
+            # Real-time live viewers currently streaming (heartbeat <= 5s ago and not finished)
             live_viewers_count = sessions.filter(
-                last_watched_at__gte=fifteen_secs_ago,
+                last_watched_at__gte=five_secs_ago,
                 is_completed=False
             ).count()
 
@@ -300,13 +300,13 @@ class AdminWatchSessionViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'video_task_id parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
-        fifteen_secs_ago = now - timedelta(seconds=15)
+        five_secs_ago = now - timedelta(seconds=5)
         
         sessions = WatchSession.objects.select_related('user', 'video_task').filter(video_task_id=task_id).order_by('-last_watched_at', '-updated_at')
         
         users_list = []
         for s in sessions:
-            is_live = bool(s.last_watched_at and s.last_watched_at >= fifteen_secs_ago and not s.is_completed)
+            is_live = bool(s.last_watched_at and s.last_watched_at >= five_secs_ago and not s.is_completed)
             
             if s.is_completed:
                 status_label = 'Completed'

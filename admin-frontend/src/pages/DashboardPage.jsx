@@ -70,7 +70,7 @@ export function DashboardPage() {
     fetchStats(false, chartRange);
     const interval = setInterval(() => {
       fetchStats(false, chartRange);
-    }, 5000); // 5s live polling
+    }, 3000); // 3s live polling
     return () => clearInterval(interval);
   }, [chartRange]);
 

@@ -47,7 +47,7 @@ export function WatchSessionsPage() {
     loadTelemetry();
     const interval = setInterval(() => {
       loadTelemetry();
-    }, 4000); // 4s live polling
+    }, 3000); // 3s live polling
     return () => clearInterval(interval);
   }, [search]);
 

@@ -165,6 +165,54 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
                 reference_id=str(session.id)
             )
 
+        # Gamification Integrations (Phase 1)
+        xp_earned = int((delta_seconds / 60.0) * 10)
+        if is_completed:
+            xp_earned += 50  # Bonus XP on task completion
+
+        lucky_drop = None
+        try:
+            from apps.gamification.services.xp_service import add_xp
+            from apps.gamification.services.quest_service import update_quest_progress
+            from apps.gamification.services.badge_service import evaluate_user_badges
+            import random
+
+            # Award XP
+            if xp_earned > 0:
+                add_xp(user, xp_earned, 'watch_video')
+
+            # Update Quests
+            update_quest_progress(user, 'watch_seconds', increment=int(delta_seconds))
+            if is_completed:
+                update_quest_progress(user, 'complete_tasks', increment=1)
+                update_quest_progress(user, 'watch_video', increment=1)
+
+            # Lucky Drop (1.7): Check every 600s interval crossed
+            old_interval = int(old_total // 600)
+            new_interval = int(new_total // 600)
+            if new_interval > old_interval and random.random() < 0.05:  # 5% probability
+                drop_coins = Decimal(str(random.choice([10.0, 25.0, 50.0])))
+                wallet.balance += drop_coins
+                wallet.save()
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    amount=drop_coins,
+                    balance_after=wallet.balance,
+                    transaction_type='lucky_drop',
+                    description=f"💎 In-Watch Lucky Drop! (+{drop_coins} coins)",
+                    reference_id=f"drop_{session.id}_{new_interval}"
+                )
+                lucky_drop = {
+                    'type': 'coins',
+                    'value': float(drop_coins),
+                    'message': f"💎 Lucky Drop! You found +{drop_coins} Bonus Coins while watching!"
+                }
+
+            # Evaluate Badges
+            evaluate_user_badges(user)
+        except Exception:
+            pass
+
         return {
             'session_id': session.id,
             'coins_earned': float(coins_earned),
@@ -172,5 +220,7 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
             'current_position': session.current_position,
             'is_completed': session.is_completed,
             'wallet_balance': float(wallet.balance),
+            'xp_earned': xp_earned,
+            'lucky_drop': lucky_drop,
             'message': desc or 'Progress updated.'
         }

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'apps.tracking',
     'apps.ai_service',
     'apps.admin_api',
+    'apps.gamification',
 ]
 
 MIDDLEWARE = [

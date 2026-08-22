@@ -15,14 +15,20 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const data = await adminApi.login(username, password);
-      if (!data.user?.is_staff && !data.user?.is_superuser) {
+      const userObj = data.user;
+      const accessToken = data.tokens?.access || data.access;
+      const refreshToken = data.tokens?.refresh || data.refresh;
+
+      if (!userObj?.is_staff && !userObj?.is_superuser) {
         throw new Error('Access denied. Administrator privileges required.');
       }
-      localStorage.setItem('vewra_admin_token', data.access);
-      localStorage.setItem('vewra_admin_refresh_token', data.refresh);
-      localStorage.setItem('vewra_admin_user', JSON.stringify(data.user));
-      setToken(data.access);
-      setUser(data.user);
+      localStorage.setItem('vewra_admin_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('vewra_admin_refresh_token', refreshToken);
+      }
+      localStorage.setItem('vewra_admin_user', JSON.stringify(userObj));
+      setToken(accessToken);
+      setUser(userObj);
       return data;
     } finally {
       setLoading(false);

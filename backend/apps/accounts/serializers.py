@@ -9,8 +9,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'wallet_balance')
-        read_only_fields = ('id', 'date_joined', 'wallet_balance')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_superuser', 'date_joined', 'wallet_balance')
+        read_only_fields = ('id', 'is_staff', 'is_superuser', 'date_joined', 'wallet_balance')
 
     def get_wallet_balance(self, obj):
         try:

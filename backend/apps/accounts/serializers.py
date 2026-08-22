@@ -1,5 +1,7 @@
+import re
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.core.cache import cache
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.wallet.models import Wallet
@@ -19,12 +21,22 @@ class UserSerializer(serializers.ModelSerializer):
             return 0.0
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(write_only=True, min_length=8)
     email = serializers.EmailField(required=True)
 
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'password')
+
+    def validate_password(self, value):
+        # FIX-05: Password strength policy: min 8 chars, must include letter + number
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        if not re.search(r"[a-zA-Z]", value):
+            raise serializers.ValidationError("Password must contain at least one letter.")
+        if not re.search(r"\d", value):
+            raise serializers.ValidationError("Password must contain at least one number.")
+        return value
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -51,35 +63,50 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        username = attrs.get('username')
-        password = attrs.get('password')
+        username = attrs.get('username', '').strip()
+        password = attrs.get('password', '')
 
-        if username and password:
-            # Support login with either username or email
-            user = None
-            if '@' in username:
-                try:
-                    user_obj = User.objects.get(email__iexact=username)
-                    user = authenticate(username=user_obj.username, password=password)
-                except User.DoesNotExist:
-                    pass
-            if not user:
-                user = authenticate(username=username, password=password)
+        if not username or not password:
+            raise serializers.ValidationError("Must provide both username and password.")
 
-            if not user:
-                raise serializers.ValidationError("Invalid username/email or password.")
-            if not user.is_active:
-                raise serializers.ValidationError("User account is disabled.")
+        lockout_key = f"auth_lockout:{username.lower()}"
+        failed_count = cache.get(lockout_key, 0)
+        if failed_count >= 5:
+            raise serializers.ValidationError("Account temporarily locked due to multiple failed login attempts. Please wait 15 minutes.")
 
-            # Ensure wallet exists
-            Wallet.objects.get_or_create(user=user)
+        # Support login with either username or email
+        user = None
+        if '@' in username:
+            try:
+                user_obj = User.objects.get(email__iexact=username)
+                user = authenticate(username=user_obj.username, password=password)
+            except User.DoesNotExist:
+                pass
+        if not user:
+            user = authenticate(username=username, password=password)
 
-            refresh = RefreshToken.for_user(user)
-            return {
-                'user': user,
-                'tokens': {
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                }
+        if not user:
+            new_failed = failed_count + 1
+            cache.set(lockout_key, new_failed, timeout=900)  # 15 minutes cooldown
+            remaining = max(0, 5 - new_failed)
+            if remaining == 0:
+                raise serializers.ValidationError("Account temporarily locked due to 5 failed login attempts. Please wait 15 minutes.")
+            raise serializers.ValidationError(f"Invalid credentials. ({remaining} attempt(s) remaining before lockout)")
+
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled.")
+
+        # Clear lockout counter on successful auth
+        cache.delete(lockout_key)
+
+        # Ensure wallet exists
+        Wallet.objects.get_or_create(user=user)
+
+        refresh = RefreshToken.for_user(user)
+        return {
+            'user': user,
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
             }
-        raise serializers.ValidationError("Must provide both username and password.")
+        }

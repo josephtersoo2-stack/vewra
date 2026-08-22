@@ -19,6 +19,8 @@ class VideoTask(models.Model):
     reward_config = models.JSONField(default=dict, blank=True)
     
     is_active = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -97,15 +99,19 @@ class WatchSession(models.Model):
     
     current_position = models.FloatField(default=0.0)          # highest second reached
     total_watched_seconds = models.FloatField(default=0.0)     # total unique seconds watched
-    is_completed = models.BooleanField(default=False)
+    is_completed = models.BooleanField(default=False, db_index=True)
     
-    last_watched_at = models.DateTimeField(null=True, blank=True)
+    last_watched_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('user', 'video_task')
         ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['last_watched_at', 'is_completed']),
+            models.Index(fields=['user', 'last_watched_at']),
+        ]
 
     def __str__(self):
         return f"User: {self.user.username} | Task: {self.video_task.video_id} | Watched: {self.total_watched_seconds:.1f}s | Completed: {self.is_completed}"

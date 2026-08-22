@@ -1,0 +1,99 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vewra_prod_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-vewra}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vewra_secure_prod_2026}
+      POSTGRES_DB: ${DB_NAME:-vewra_db}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER:-vewra}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vewra_prod_redis
+    restart: always
+    volumes:
+      - redisdata_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vewra_prod_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      DB_ENGINE: postgresql
+      DB_NAME: ${DB_NAME:-vewra_db}
+      DB_USER: ${DB_USER:-vewra}
+      DB_PASSWORD: ${DB_PASSWORD:-vewra_secure_prod_2026}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CORS_ALLOW_ALL: "False"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --workers 3 vewra_backend.wsgi:application"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vewra_prod_celery
+    restart: always
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DB_ENGINE: postgresql
+      DB_NAME: ${DB_NAME:-vewra_db}
+      DB_USER: ${DB_USER:-vewra}
+      DB_PASSWORD: ${DB_PASSWORD:-vewra_secure_prod_2026}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+    command: celery -A vewra_backend worker -l info
+
+  admin_frontend:
+    build:
+      context: ./admin-frontend
+      dockerfile: Dockerfile
+    container_name: vewra_prod_admin_frontend
+    restart: always
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata_prod:
+  redisdata_prod:

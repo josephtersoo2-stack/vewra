@@ -83,7 +83,7 @@ class RewardCalculator:
 
         return coins_earned, is_completed, description
 
-def process_watch_progress(user, session_id: int, current_time: float, delta_seconds: float) -> dict:
+def process_watch_progress(user, session_id: int, current_time: float, delta_seconds: float, request_ip: str = None) -> dict:
     """
     Processes a watch progress ping atomically.
     Protects against race conditions using select_for_update.
@@ -100,6 +100,13 @@ def process_watch_progress(user, session_id: int, current_time: float, delta_sec
     MAX_ALLOWED_DELTA = 15.0
     if delta_seconds > MAX_ALLOWED_DELTA:
         delta_seconds = MAX_ALLOWED_DELTA
+
+    # Evaluate Anti-Fraud Signal (FIX-12)
+    try:
+        from apps.core.fraud import evaluate_fraud_signal
+        evaluate_fraud_signal(user=user, delta_seconds=delta_seconds, request_ip=request_ip)
+    except Exception:
+        pass
 
     with transaction.atomic():
         try:

@@ -4,14 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/core/constants/app_colors.dart';
 import 'package:mobile/core/theme/app_theme.dart';
+import 'package:mobile/core/widgets/vewra_drawer.dart';
 import 'package:mobile/features/auth/presentation/auth_provider.dart';
 import 'package:mobile/features/auth/presentation/login_screen.dart';
 import 'package:mobile/features/tasks/presentation/tasks_provider.dart';
 import 'package:mobile/features/tasks/presentation/task_list_screen.dart';
-import 'package:mobile/features/browser/presentation/general_browser_screen.dart';
 import 'package:mobile/features/wallet/presentation/wallet_provider.dart';
 import 'package:mobile/features/wallet/presentation/wallet_screen.dart';
 import 'package:mobile/features/profile/presentation/profile_screen.dart';
+import 'package:mobile/features/home/presentation/home_screen.dart';
 
 class VewraApp extends StatelessWidget {
   const VewraApp({super.key});
@@ -67,13 +68,17 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  final List<Widget> _screens = const [
-    TaskListScreen(),
-    GeneralBrowserScreen(),
-    WalletScreen(),
-    ProfileScreen(),
-  ];
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  void _navigateToTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   Future<bool> _showExitConfirmationDialog() async {
     final shouldExit = await showDialog<bool>(
@@ -122,62 +127,82 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> screens = [
+      HomeScreen(
+        onOpenDrawer: _openDrawer,
+        onNavigateTab: _navigateToTab,
+      ),
+      TaskListScreen(
+        onOpenDrawer: _openDrawer,
+      ),
+      WalletScreen(
+        onOpenDrawer: _openDrawer,
+      ),
+      ProfileScreen(
+        onOpenDrawer: _openDrawer,
+      ),
+    ];
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         if (_currentIndex != 0) {
-          // If on another tab, switch back to Tasks first
           setState(() {
             _currentIndex = 0;
           });
         } else {
-          // If already on Tasks tab, prompt exit confirmation
           await _showExitConfirmationDialog();
         }
       },
       child: Scaffold(
+        key: _scaffoldKey,
+        drawer: VewraDrawer(onNavigateTab: _navigateToTab),
         body: IndexedStack(
           index: _currentIndex,
-          children: _screens,
+          children: screens,
         ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          bottom: true,
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.border, width: 0.8)),
-            ),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.play_rectangle),
-                  activeIcon: Icon(CupertinoIcons.play_rectangle_fill),
-                  label: 'Tasks',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.compass),
-                  activeIcon: Icon(CupertinoIcons.compass_fill),
-                  label: 'Browser',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.money_dollar_circle),
-                  activeIcon: Icon(CupertinoIcons.money_dollar_circle_fill),
-                  label: 'Wallet',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.person),
-                  activeIcon: Icon(CupertinoIcons.person_fill),
-                  label: 'Profile',
-                ),
-              ],
-            ),
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            border: Border(top: BorderSide(color: AppColors.border, width: 0.8)),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            backgroundColor: AppColors.surface,
+            selectedItemColor: AppColors.primaryLight,
+            unselectedItemColor: AppColors.textMuted,
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            type: BottomNavigationBarType.fixed,
+            elevation: 0,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(CupertinoIcons.house),
+                activeIcon: Icon(CupertinoIcons.house_fill),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(CupertinoIcons.play_rectangle),
+                activeIcon: Icon(CupertinoIcons.play_rectangle_fill),
+                label: 'Earn',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(CupertinoIcons.gift),
+                activeIcon: Icon(CupertinoIcons.gift_fill),
+                label: 'Rewards',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(CupertinoIcons.person),
+                activeIcon: Icon(CupertinoIcons.person_fill),
+                label: 'Profile',
+              ),
+            ],
           ),
         ),
       ),

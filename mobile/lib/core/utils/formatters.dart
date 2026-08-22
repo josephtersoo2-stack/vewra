@@ -28,4 +28,9 @@ class Formatters {
       return dateString;
     }
   }
+
+  static String formatDateTime(DateTime? dateTime) {
+    if (dateTime == null) return '';
+    return DateFormat('MMM d, y • h:mm a').format(dateTime.toLocal());
+  }
 }

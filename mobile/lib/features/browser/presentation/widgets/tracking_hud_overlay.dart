@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/core/constants/app_colors.dart';
 import 'package:mobile/core/utils/formatters.dart';
 import 'package:mobile/features/tasks/domain/video_task_model.dart';
+import 'package:mobile/features/browser/presentation/widgets/task_progress_modal.dart';
 
-class TrackingHudOverlay extends StatefulWidget {
+class TrackingHudOverlay extends StatelessWidget {
   final VideoTaskModel task;
   final bool isTargetDetected;
   final bool isTracking;
@@ -27,223 +29,142 @@ class TrackingHudOverlay extends StatefulWidget {
   });
 
   @override
-  State<TrackingHudOverlay> createState() => _TrackingHudOverlayState();
-}
-
-class _TrackingHudOverlayState extends State<TrackingHudOverlay> {
-  bool _isExpanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    // Only appear when the target video is detected or task is completed
-    if (!widget.isTargetDetected && !widget.isCompleted) {
+    if (!isTargetDetected && !isCompleted) {
       return const SizedBox.shrink();
     }
 
-    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    final targetSeconds = 300.0;
+    final percent = (totalWatchedSeconds / targetSeconds).clamp(0.0, 1.0);
+    final percentInt = (percent * 100).toInt();
 
     return Positioned(
-      bottom: 16.0 + bottomPadding,
+      bottom: 16.0 + MediaQuery.paddingOf(context).bottom,
       left: 16,
       right: 16,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard.withOpacity(0.96),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: !widget.isGoogleLoggedIn
-                ? AppColors.warning
-                : widget.isCompleted
-                    ? AppColors.success
-                    : widget.isTargetDetected
-                        ? AppColors.primary
-                        : AppColors.border,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+      child: GestureDetector(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => TaskProgressModal(
+              taskTitle: task.title,
+              totalWatchedSeconds: totalWatchedSeconds,
+              targetSeconds: targetSeconds,
+              coinsEarned: sessionCoinsEarned,
+              isCompleted: isCompleted,
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                // Status Indicator Dot / Icon
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: !widget.isGoogleLoggedIn
-                        ? AppColors.warning.withOpacity(0.2)
-                        : widget.isCompleted
-                            ? AppColors.success.withOpacity(0.2)
-                            : widget.isTracking
-                                ? AppColors.success.withOpacity(0.2)
-                                : AppColors.primary.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    !widget.isGoogleLoggedIn
-                        ? CupertinoIcons.exclamationmark_triangle_fill
-                        : widget.isCompleted
-                            ? CupertinoIcons.check_mark_circled_solid
-                            : widget.isTracking
-                                ? CupertinoIcons.play_circle_fill
-                                : CupertinoIcons.pause_circle_fill,
-                    color: !widget.isGoogleLoggedIn
-                        ? AppColors.warning
-                        : widget.isCompleted
-                            ? AppColors.success
-                            : widget.isTracking
-                                ? AppColors.success
-                                : AppColors.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Status text & Watch Timer
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        !widget.isGoogleLoggedIn
-                            ? 'Google Sign-In Required'
-                            : widget.isCompleted
-                                ? 'Task Completed! 🎉'
-                                : widget.isTracking
-                                    ? 'Tracking Watch Time...'
-                                    : 'Target Video Paused',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: !widget.isGoogleLoggedIn
-                              ? AppColors.warning
-                              : widget.isCompleted
-                                  ? AppColors.success
-                                  : widget.isTracking
-                                      ? AppColors.success
-                                      : AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(
-                            !widget.isGoogleLoggedIn ? CupertinoIcons.lock_fill : CupertinoIcons.time,
-                            size: 12,
-                            color: !widget.isGoogleLoggedIn ? AppColors.warning : AppColors.textMuted,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            !widget.isGoogleLoggedIn
-                                ? 'Must be logged in to earn coins'
-                                : 'Watched: ${Formatters.formatDuration(widget.totalWatchedSeconds)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: !widget.isGoogleLoggedIn ? AppColors.warning : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Coins Earned Pill or Sign In Button
-                if (!widget.isGoogleLoggedIn)
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.warning,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard.withOpacity(0.96),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isCompleted
+                  ? AppColors.success
+                  : (isTracking ? AppColors.primaryLight : AppColors.border),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Task Progress',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
                     ),
-                    onPressed: widget.onSignInTap,
-                    child: const Text('Sign In', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                  )
-                else
+                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.coinGold.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.coinGold.withOpacity(0.4)),
+                      color: isCompleted
+                          ? AppColors.success.withOpacity(0.2)
+                          : (isTracking ? AppColors.primary.withOpacity(0.2) : AppColors.surfaceElevated),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 12),
+                        Icon(
+                          isCompleted
+                              ? CupertinoIcons.checkmark_circle_fill
+                              : (isTracking ? CupertinoIcons.play_circle_fill : CupertinoIcons.pause_circle_fill),
+                          color: isCompleted ? AppColors.success : (isTracking ? AppColors.primaryLight : AppColors.textMuted),
+                          size: 14,
+                        ),
                         const SizedBox(width: 5),
                         Text(
-                          '+${Formatters.formatCoins(widget.sessionCoinsEarned)}',
-                          style: const TextStyle(
-                            color: AppColors.coinGold,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
+                          isCompleted ? 'Complete' : (isTracking ? 'Active' : 'Paused'),
+                          style: GoogleFonts.outfit(
+                            color: isCompleted ? AppColors.success : (isTracking ? AppColors.primaryLight : AppColors.textMuted),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
 
-                const SizedBox(width: 6),
-                // Expand / Collapse Info Toggle
-                IconButton(
-                  icon: Icon(
-                    _isExpanded ? CupertinoIcons.chevron_down : CupertinoIcons.info_circle,
-                    color: AppColors.textSecondary,
-                    size: 20,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Watch for 5 minutes',
+                    style: GoogleFonts.outfit(color: AppColors.textSecondary, fontSize: 13),
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                    });
-                  },
-                ),
-              ],
-            ),
+                  Text(
+                    '${Formatters.formatDuration(totalWatchedSeconds)} / ${Formatters.formatDuration(targetSeconds)} ($percentInt%)',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
 
-            // Expanded Helper Info
-            if (_isExpanded) ...[
-              const Divider(color: AppColors.divider, height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Target: ${widget.task.title}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Target Video ID: ${widget.task.videoId}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: percent,
+                  minHeight: 6,
+                  backgroundColor: AppColors.surfaceElevated,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isCompleted ? AppColors.success : AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Text(
+                'Do not close the app or minimize the player',
+                style: GoogleFonts.outfit(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );

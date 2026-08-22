@@ -8,6 +8,7 @@ class ApiClient {
 
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
+  static ApiClient get instance => _instance;
 
   ApiClient._internal() {
     dio = Dio(
@@ -55,6 +56,7 @@ class ApiClient {
     );
   }
 
+  // Instance methods
   Future<dynamic> get(String path, {Map<String, dynamic>? queryParameters}) async {
     try {
       final response = await dio.get(path, queryParameters: queryParameters);
@@ -67,6 +69,15 @@ class ApiClient {
   Future<dynamic> post(String path, {dynamic data}) async {
     try {
       final response = await dio.post(path, data: data);
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<dynamic> patch(String path, {dynamic data}) async {
+    try {
+      final response = await dio.patch(path, data: data);
       return response.data;
     } on DioException catch (e) {
       throw _handleError(e);

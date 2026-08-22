@@ -17,6 +17,7 @@ import 'package:mobile/features/tasks/presentation/tasks_provider.dart';
 import 'package:mobile/features/tasks/data/task_repository.dart';
 import 'package:mobile/features/browser/tracking/youtube_js_tracker.dart';
 import 'package:mobile/features/browser/presentation/widgets/tracking_hud_overlay.dart';
+import 'package:mobile/features/browser/presentation/widgets/reward_celebration_dialog.dart';
 
 class YouTubeBrowserScreen extends StatefulWidget {
   final VideoTaskModel task;
@@ -216,56 +217,18 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.primary, width: 1.5),
-        ),
-        title: const Row(
-          children: [
-            Icon(CupertinoIcons.checkmark_seal_fill, color: AppColors.primary, size: 28),
-            SizedBox(width: 10),
-            Text('Task Completed!'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Awesome! You successfully completed:\n"${widget.task.title}"',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.money_dollar_circle_fill, color: AppColors.coinGold, size: 24),
-                  const SizedBox(width: 10),
-                  Text(
-                    '+${Formatters.formatCoins(_sessionCoinsEarned)} Coins',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.coinGold),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Back to Tasks'),
-          ),
-        ],
+      builder: (ctx) => RewardCelebrationDialog(
+        taskTitle: widget.task.title,
+        coinsEarned: _sessionCoinsEarned > 0 ? _sessionCoinsEarned : 50.0,
+        watchedSeconds: _totalWatchedSeconds,
+        onContinue: () {
+          Navigator.of(ctx).pop();
+          Navigator.of(context).pop();
+        },
+        onViewMore: () {
+          Navigator.of(ctx).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

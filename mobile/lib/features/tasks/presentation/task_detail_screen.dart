@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/core/constants/app_colors.dart';
-import 'package:mobile/core/utils/formatters.dart';
 import 'package:mobile/features/tasks/presentation/tasks_provider.dart';
-import 'package:mobile/features/tasks/presentation/widgets/instruction_card.dart';
 import 'package:mobile/features/browser/presentation/youtube_browser_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
@@ -23,13 +23,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<TasksProvider>(context, listen: false).fetchTaskDetail(widget.taskId);
+      context.read<TasksProvider>().fetchTaskDetail(widget.taskId);
     });
   }
 
   void _onStartTask() async {
     setState(() => _isStarting = true);
-    final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+    final tasksProvider = context.read<TasksProvider>();
     final session = await tasksProvider.startTask(widget.taskId);
     setState(() => _isStarting = false);
 
@@ -50,7 +50,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         SnackBar(
           content: Text(tasksProvider.errorMessage ?? 'Could not start task session.'),
           backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -62,219 +61,235 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final task = tasksProvider.currentTaskDetail;
     final isLoading = tasksProvider.isLoading && task == null;
 
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Task Details'),
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(CupertinoIcons.share),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Task link copied to clipboard!')),
+              );
+            },
+          ),
+        ],
       ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : task == null
               ? Center(
+                  child: Text(
+                    tasksProvider.errorMessage ?? 'Task not found.',
+                    style: GoogleFonts.outfit(color: AppColors.textSecondary),
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(CupertinoIcons.exclamationmark_triangle, color: AppColors.error, size: 48),
-                      const SizedBox(height: 16),
-                      Text(
-                        tasksProvider.errorMessage ?? 'Task not found.',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                      // Hero Thumbnail with Play Icon
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              height: 200,
+                              width: double.infinity,
+                              color: AppColors.surfaceElevated,
+                              child: task.thumbnailUrl != null
+                                  ? Image.network(task.thumbnailUrl!, fit: BoxFit.cover)
+                                  : const Icon(CupertinoIcons.play_rectangle_fill, color: AppColors.primaryLight, size: 48),
+                            ),
+                            Container(
+                              width: 58,
+                              height: 58,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.65),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white24, width: 2),
+                              ),
+                              child: const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 28),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => tasksProvider.fetchTaskDetail(widget.taskId),
-                        child: const Text('Retry'),
+
+                      const SizedBox(height: 18),
+
+                      // Title
+                      Text(
+                        task.title,
+                        style: GoogleFonts.outfit(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Tag Pills
+                      Row(
+                        children: [
+                          _buildTag(CupertinoIcons.play_rectangle_fill, 'Video Task', AppColors.primary),
+                          const SizedBox(width: 8),
+                          _buildTag(CupertinoIcons.time, '5 min', AppColors.surfaceElevated),
+                          const SizedBox(width: 8),
+                          _buildTag(Icons.monetization_on, task.rewardSummary, AppColors.coinGold.withOpacity(0.2), textColor: AppColors.coinGold),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Instructions Section
+                      Text(
+                        'Instructions',
+                        style: GoogleFonts.outfit(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildBullet('Search and watch the video on YouTube.'),
+                      _buildBullet('Watch the full required video time to receive coins.'),
+                      _buildBullet('Do not change playback speed or minimize the browser.'),
+
+                      const SizedBox(height: 24),
+
+                      // Random Search Instruction Box
+                      Text(
+                        'Random Search Instruction',
+                        style: GoogleFonts.outfit(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Search on YouTube for:',
+                        style: GoogleFonts.outfit(color: AppColors.textMuted, fontSize: 13),
+                      ),
+                      const SizedBox(height: 10),
+
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                task.instruction?.searchQuery ?? task.title,
+                                style: GoogleFonts.outfit(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(CupertinoIcons.doc_on_doc, color: AppColors.primaryLight, size: 20),
+                              onPressed: () {
+                                Clipboard.setData(
+                                  ClipboardData(text: task.instruction?.searchQuery ?? task.title),
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Search keyword copied!'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Prominent Purple Start Task CTA
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shadowColor: AppColors.primary.withOpacity(0.5),
+                            elevation: 8,
+                          ),
+                          onPressed: _isStarting ? null : _onStartTask,
+                          child: _isStarting
+                              ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)
+                              : Text(
+                                  'Start Task',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                        ),
                       ),
                     ],
                   ),
-                )
-              : SafeArea(
-                  top: false,
-                  bottom: true,
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 32.0 + MediaQuery.paddingOf(context).bottom),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Video Thumbnail & Play Badge
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                height: 190,
-                                width: double.infinity,
-                                color: AppColors.surface,
-                                child: task.thumbnailUrl != null
-                                    ? Image.network(
-                                        task.thumbnailUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => const Center(
-                                          child: Icon(CupertinoIcons.video_camera, color: AppColors.textMuted, size: 40),
-                                        ),
-                                      )
-                                    : const Center(
-                                        child: Icon(CupertinoIcons.video_camera, color: AppColors.textMuted, size: 40),
-                                      ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.7),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  CupertinoIcons.play_arrow_solid,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                              if (task.isCompletedByUser)
-                                Positioned(
-                                  top: 12,
-                                  right: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.success,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.white, size: 14),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'COMPLETED',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-
-                        // Title
-                        Text(
-                          task.title,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            height: 1.3,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Reward Configuration Card
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceCard,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.coinGold.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.coinGold.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(CupertinoIcons.circle_filled, color: AppColors.coinGold, size: 18),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Reward Rule',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      task.rewardSummary,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.coinGold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (task.watchedSeconds > 0)
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text(
-                                      'Watched',
-                                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                    ),
-                                    Text(
-                                      Formatters.formatDuration(task.watchedSeconds),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Randomized Instruction Card
-                        if (task.instruction != null) ...[
-                          InstructionCard(instruction: task.instruction!),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // Start Task / Resume Task Action Button
-                        SizedBox(
-                          height: 54,
-                          child: ElevatedButton.icon(
-                            onPressed: _isStarting ? null : _onStartTask,
-                            icon: _isStarting
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : const Icon(CupertinoIcons.arrow_right_circle_fill, size: 22),
-                            label: Text(
-                              task.isCompletedByUser
-                                  ? 'Browse Again (Completed)'
-                                  : task.watchedSeconds > 0
-                                      ? 'Resume Task'
-                                      : 'Start Task & Open Browser',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
+    );
+  }
+
+  Widget _buildTag(IconData icon, String label, Color bgColor, {Color? textColor}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor ?? Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              color: textColor ?? Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(color: AppColors.primaryLight, fontSize: 16)),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.outfit(color: AppColors.textSecondary, fontSize: 14, height: 1.4),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
